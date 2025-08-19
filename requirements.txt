@@ -1,0 +1,11 @@
+# Flask Builder - Development Dependencies
+# 이 파일은 Flask Builder 자체를 개발할 때 필요한 패키지들입니다.
+
+# Core dependencies
+pathlib2>=2.3.7; python_version < "3.4"
+
+# Development tools (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0
+# mypy>=0.950
