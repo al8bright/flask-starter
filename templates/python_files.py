@@ -5,7 +5,7 @@ from textwrap import dedent
 
 APP_INIT = dedent("""
     import os
-    from flask import Flask, render_template
+    from flask import Flask, render_template, request, session
     from dotenv import load_dotenv
     
     from app.config import config
@@ -37,10 +37,16 @@ APP_INIT = dedent("""
         from app.routes import init_app as init_routes
         init_routes(app)
         
-        # 메인 페이지
-        @app.route('/')
-        def index():
-            return render_template('index.html', title='__PROJECT_NAME__')
+        # 전역 context processor 추가
+        @app.context_processor
+        def inject_locale():
+            '''템플릿에 현재 로케일 주입'''
+            from flask_babel import get_locale
+            return {'get_locale': get_locale}
+        
+
+        
+
         
         # Jinja2 필터 추가
         @app.template_filter('nl2br')

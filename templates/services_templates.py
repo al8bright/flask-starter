@@ -16,17 +16,15 @@ POSTS_SERVICE = dedent(
         '''게시글 서비스 클래스'''
         
         @staticmethod
-        @cache.memoize(timeout=300)
         def get_posts(page=1, per_page=10):
-            '''게시글 목록 조회 (캐시 적용)'''
+            '''게시글 목록 조회'''
             return Post.query.order_by(Post.created_at.desc()).paginate(
                 page=page, per_page=per_page, error_out=False
             )
         
         @staticmethod
-        @cache.memoize(timeout=300)
         def get_post(post_id):
-            '''게시글 상세 조회 (캐시 적용)'''
+            '''게시글 상세 조회'''
             return Post.query.get_or_404(post_id)
         
         @staticmethod
@@ -48,8 +46,8 @@ POSTS_SERVICE = dedent(
             db.session.add(post)
             db.session.commit()
             
-            # 캐시 무효화
-            cache.delete_memoized(PostsService.get_posts)
+            # 캐시 무효화 (필요시)
+            pass
             
             return post
         
@@ -80,9 +78,8 @@ POSTS_SERVICE = dedent(
             
             db.session.commit()
             
-            # 캐시 무효화
-            cache.delete_memoized(PostsService.get_posts)
-            cache.delete_memoized(PostsService.get_post, post_id)
+            # 캐시 무효화 (필요시)
+            pass
             
             return post
         
@@ -103,9 +100,8 @@ POSTS_SERVICE = dedent(
             db.session.delete(post)
             db.session.commit()
             
-            # 캐시 무효화
-            cache.delete_memoized(PostsService.get_posts)
-            cache.delete_memoized(PostsService.get_post, post_id)
+            # 캐시 무효화 (필요시)
+            pass
             
             return True
     """

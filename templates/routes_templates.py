@@ -10,9 +10,11 @@ ROUTES_INIT = dedent(
     from .auth import auth_bp
     from .posts import posts_bp
     from .files import files_bp
+    from .main import main_bp
     
     def init_app(app):
         '''블루프린트 등록'''
+        app.register_blueprint(main_bp)
         app.register_blueprint(auth_bp, url_prefix='/auth')
         app.register_blueprint(posts_bp, url_prefix='/posts')
         app.register_blueprint(files_bp, url_prefix='/files')
@@ -173,6 +175,33 @@ POSTS_ROUTES = dedent(
             flash('게시글 삭제 중 오류가 발생했습니다.', 'error')
         
         return redirect(url_for('posts.list'))
+    """
+)
+
+MAIN_ROUTES = dedent(
+    """
+    from flask import Blueprint, redirect, url_for, request, session
+    from flask_babel import get_locale
+    
+    main_bp = Blueprint('main', __name__)
+    
+    @main_bp.route('/')
+    def index():
+        '''메인 페이지 - 게시글 목록으로 리다이렉트'''
+        return redirect(url_for('posts.list'))
+    
+    @main_bp.route('/set-locale/<locale>')
+    def set_locale(locale):
+        '''언어 설정'''
+        if locale in ['ko', 'en']:
+            session['locale'] = locale
+        return redirect(request.referrer or url_for('main.index'))
+    
+    @main_bp.context_processor
+    def inject_locale():
+        '''템플릿에 현재 로케일 주입'''
+        from flask_babel import get_locale
+        return {'get_locale': get_locale}
     """
 )
 

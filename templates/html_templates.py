@@ -27,16 +27,17 @@ HTML 템플릿들 (Tailwind CSS 사용)
 # </html>
 # """
 
-# 기본 템플릿 (Tailwind CSS 사용)
+# 기본 템플릿 (Tailwind CSS 사용 + 다국어 + 다크모드)
 BASE_TAILWIND = """<!doctype html>
-<html lang="ko">
+<html lang="{{ get_locale().language }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title or '__PROJECT_NAME__' }}</title>
+    <title>{{ title or _('__PROJECT_NAME__') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             typography: {
@@ -51,34 +52,52 @@ BASE_TAILWIND = """<!doctype html>
       }
     </script>
   </head>
-  <body class="min-h-screen bg-gray-50 text-gray-900">
-    <header class="bg-white shadow">
+  <body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    <header class="bg-white dark:bg-gray-800 shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-4">
-          <div class="flex items-center">
-            <a href="{{ url_for('posts.list') }}" class="text-xl font-semibold text-gray-900">
-              __PROJECT_NAME__
+          <div class="flex items-center space-x-4">
+            <a href="{{ url_for('posts.list') }}" class="text-xl font-semibold text-gray-900 dark:text-white">
+              {{ _('__PROJECT_NAME__') }}
             </a>
+            <!-- 언어 선택 -->
+            <div class="flex items-center space-x-2">
+              <a href="{{ url_for('main.set_locale', locale='ko') }}" class="text-sm px-2 py-1 rounded {{ 'bg-blue-500 text-white' if get_locale().language == 'ko' else 'text-gray-600 dark:text-gray-400' }}">
+                한국어
+              </a>
+              <a href="{{ url_for('main.set_locale', locale='en') }}" class="text-sm px-2 py-1 rounded {{ 'bg-blue-500 text-white' if get_locale().language == 'en' else 'text-gray-600 dark:text-gray-400' }}">
+                English
+              </a>
+            </div>
           </div>
-          <nav class="flex space-x-4">
-            <a href="{{ url_for('posts.list') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-              게시글
+          <nav class="flex items-center space-x-4">
+            <a href="{{ url_for('posts.list') }}" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              {{ _('Posts') }}
             </a>
             {% if current_user.is_authenticated %}
-              <a href="{{ url_for('posts.new') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                글쓰기
+              <a href="{{ url_for('posts.new') }}" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                {{ _('Write Post') }}
               </a>
-              <span class="text-gray-500 px-3 py-2 text-sm">
-                {{ current_user.username }}님
+              <span class="text-gray-500 dark:text-gray-400 px-3 py-2 text-sm">
+                {{ current_user.username }}{{ _('님') }}
               </span>
-              <a href="{{ url_for('auth.logout') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                로그아웃
+              <a href="{{ url_for('auth.logout') }}" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                {{ _('Logout') }}
               </a>
             {% else %}
-              <a href="{{ url_for('auth.login') }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                로그인
+              <a href="{{ url_for('auth.login') }}" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                {{ _('Login') }}
               </a>
             {% endif %}
+            <!-- 테마 토글 버튼 -->
+            <button id="theme-toggle" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+              <svg id="sun-icon" class="w-5 h-5 text-gray-800 dark:text-gray-200 hidden" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
+              </svg>
+              <svg id="moon-icon" class="w-5 h-5 text-gray-800 dark:text-gray-200" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+              </svg>
+            </button>
           </nav>
         </div>
       </div>

@@ -15,11 +15,12 @@ from templates.extensions_templates import EXTENSIONS_PY
 from templates.models_templates import MODELS_INIT, USER_MODEL, POST_MODEL
 from templates.utils_templates import STORAGE_UTILS, PAGINATION_UTILS, LOGGING_UTILS, ERRORS_UTILS
 from templates.services_templates import POSTS_SERVICE
-from templates.routes_templates import ROUTES_INIT, AUTH_ROUTES, POSTS_ROUTES, FILES_ROUTES
+from templates.routes_templates import ROUTES_INIT, AUTH_ROUTES, POSTS_ROUTES, FILES_ROUTES, MAIN_ROUTES
 from templates.html_templates import BASE_TAILWIND, INDEX_HTML
 from templates.auth_templates import LOGIN_HTML
 from templates.posts_templates import POSTS_LIST_HTML, POSTS_DETAIL_HTML, POSTS_FORM_HTML
 from templates.static_files import STYLES_CSS, APP_JS, README
+from templates.i18n_templates import KO_MESSAGES_PO, EN_MESSAGES_PO, BABEL_CONFIG, BABEL_MAPPING
 
 
 class ProjectBuilder:
@@ -88,6 +89,7 @@ class ProjectBuilder:
         self._write_routes()
         self._write_templates()
         self._write_static_files()
+        self._write_i18n_files()
         self._write_env_file()
         self._write_requirements()
         self._write_readme()
@@ -145,6 +147,7 @@ class ProjectBuilder:
         (routes_dir / "auth.py").write_text(AUTH_ROUTES, encoding="utf-8")
         (routes_dir / "posts.py").write_text(POSTS_ROUTES, encoding="utf-8")
         (routes_dir / "files.py").write_text(FILES_ROUTES, encoding="utf-8")
+        (routes_dir / "main.py").write_text(MAIN_ROUTES, encoding="utf-8")
     
     def _write_templates(self) -> None:
         """HTML 템플릿 파일들 작성"""
@@ -176,8 +179,8 @@ class ProjectBuilder:
         (errors_dir / "404.html").write_text("""{% extends 'base.html' %}
 {% block content %}
 <div class="text-center py-12">
-  <h1 class="text-4xl font-bold text-gray-900 mb-4">404</h1>
-  <p class="text-lg text-gray-600 mb-8">페이지를 찾을 수 없습니다.</p>
+  <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
+  <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">{{ _('Page Not Found') }}</p>
   <a href="{{ url_for('posts.list') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
     홈으로 돌아가기
   </a>
@@ -186,8 +189,8 @@ class ProjectBuilder:
         (errors_dir / "500.html").write_text("""{% extends 'base.html' %}
 {% block content %}
 <div class="text-center py-12">
-  <h1 class="text-4xl font-bold text-gray-900 mb-4">500</h1>
-  <p class="text-lg text-gray-600 mb-8">서버 오류가 발생했습니다.</p>
+  <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">500</h1>
+  <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">{{ _('Internal Server Error') }}</p>
   <a href="{{ url_for('posts.list') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
     홈으로 돌아가기
   </a>
@@ -199,6 +202,24 @@ class ProjectBuilder:
         static_dir = self.root / "app" / "static"
         (static_dir / "css" / "styles.css").write_text(STYLES_CSS, encoding="utf-8")
         (static_dir / "js" / "app.js").write_text(APP_JS, encoding="utf-8")
+    
+    def _write_i18n_files(self) -> None:
+        """다국어 지원 파일들 작성"""
+        # Babel 설정 파일들
+        (self.root / "babel.cfg").write_text(BABEL_MAPPING, encoding="utf-8")
+        
+        # 번역 파일 디렉토리 생성
+        locale_dir = self.root / "babel" / "locale"
+        (locale_dir / "ko" / "LC_MESSAGES").mkdir(parents=True, exist_ok=True)
+        (locale_dir / "en" / "LC_MESSAGES").mkdir(parents=True, exist_ok=True)
+        
+        # 한국어 번역 파일
+        ko_messages = KO_MESSAGES_PO.replace("__PROJECT_NAME__", self.project_name)
+        (locale_dir / "ko" / "LC_MESSAGES" / "messages.po").write_text(ko_messages, encoding="utf-8")
+        
+        # 영어 번역 파일
+        en_messages = EN_MESSAGES_PO.replace("__PROJECT_NAME__", self.project_name)
+        (locale_dir / "en" / "LC_MESSAGES" / "messages.po").write_text(en_messages, encoding="utf-8")
     
     def _write_env_file(self) -> None:
         """환경 변수 파일 작성"""
@@ -225,6 +246,7 @@ class ProjectBuilder:
             "Flask-Migrate>=4.0",
             "Flask-Login>=0.6",
             "Flask-Caching>=2.0",
+            "Flask-Babel>=4.0",
             "Werkzeug>=3.0",
         ]
         reqs.extend(self.driver_packages)
@@ -381,3 +403,5 @@ except Exception as e:
         print("   - /posts: 게시글 목록")
         print("   - /posts/new: 새 글 작성")
         print("   - 파일 업로드/다운로드 지원")
+        print("   - 🌍 한국어/영어 다국어 지원")
+        print("   - 🌙 라이트/다크 모드 토글")

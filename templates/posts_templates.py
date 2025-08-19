@@ -7,11 +7,11 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold text-gray-900">게시글 목록</h1>
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ _('Latest Posts') }}</h1>
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('posts.new') }}" 
          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        새 글 작성
+        {{ _('Write Post') }}
       </a>
     {% endif %}
   </div>
@@ -27,31 +27,31 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
   {% endwith %}
 
   {% if pagination and pagination.items %}
-    <div class="bg-white shadow overflow-hidden sm:rounded-md">
-      <ul class="divide-y divide-gray-200">
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+      <ul class="divide-y divide-gray-200 dark:divide-gray-700">
         {% for post in pagination.items %}
           <li>
             <div class="px-4 py-4 sm:px-6">
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0">
                   <a href="{{ url_for('posts.detail', post_id=post.id) }}" 
-                     class="block hover:bg-gray-50">
+                     class="block hover:bg-gray-50 dark:hover:bg-gray-700">
                     <div class="flex items-center justify-between">
-                      <p class="text-sm font-medium text-indigo-600 truncate">
+                      <p class="text-sm font-medium text-indigo-600 dark:text-indigo-400 truncate">
                         {{ post.title }}
                       </p>
                       {% if post.has_file %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                           📎 첨부파일
                         </span>
                       {% endif %}
                     </div>
                     <div class="mt-2 flex justify-between">
                       <div class="sm:flex">
-                        <p class="flex items-center text-sm text-gray-500">
+                        <p class="flex items-center text-sm text-gray-500 dark:text-gray-400">
                           👤 {{ post.author.username }}
                         </p>
-                        <p class="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                        <p class="mt-2 flex items-center text-sm text-gray-500 dark:text-gray-400 sm:mt-0 sm:ml-6">
                           📅 {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
                         </p>
                       </div>
@@ -61,7 +61,7 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
                 {% if current_user.is_authenticated and current_user.id == post.user_id %}
                   <div class="ml-4 flex-shrink-0 flex space-x-2">
                     <a href="{{ url_for('posts.edit', post_id=post.id) }}" 
-                       class="text-indigo-600 hover:text-indigo-900 text-sm">수정</a>
+                       class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-sm">{{ _('Edit') }}</a>
                   </div>
                 {% endif %}
               </div>
