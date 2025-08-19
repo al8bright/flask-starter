@@ -70,3 +70,30 @@ class DatabaseBuilder:
         driver_packages = ["pyodbc"]
         
         return db_url, driver_packages
+
+    def create_url_from_config(self, db_type: str, config: dict) -> tuple[str, list[str]]:
+        """GUI 설정으로부터 데이터베이스 URL을 생성합니다."""
+        if db_type == "sqlite":
+            return "", []
+        
+        host = config.get('host', 'localhost')
+        port = config.get('port', '')
+        username = config.get('username', '')
+        password = config.get('password', '')
+        database = config.get('database', '')
+        
+        if db_type == "postgresql":
+            db_url = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+            driver_packages = ["psycopg[binary]"]
+        elif db_type == "mysql":
+            db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+            driver_packages = ["PyMySQL"]
+        elif db_type == "sqlserver":
+            driver = config.get('driver', 'ODBC Driver 18 for SQL Server')
+            driver_encoded = driver.replace(" ", "+")
+            db_url = f"mssql+pyodbc://{username}:{password}@{host},{port}/{database}?driver={driver_encoded}"
+            driver_packages = ["pyodbc"]
+        else:
+            return "", []
+        
+        return db_url, driver_packages

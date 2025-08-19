@@ -11,26 +11,69 @@ Flask 프로젝트를 빠르게 생성하는 스마트 스캐폴더입니다. �
 - **📝 게시판 시스템**: CRUD 기능이 완비된 게시판
 - **📁 파일 업로드**: 파일 업로드/다운로드 기능
 - **📍 프로젝트 위치 선택**: 원하는 경로에 프로젝트 생성 가능
+- **🖥️ GUI 지원**: Electron 기반 그래픽 인터페이스 (CLI 모르는 사용자도 쉽게 사용)
 
 ## 🚀 빠른 시작
 
+### CLI 모드 (기존 방식)
 ```bash
 # 저장소 클론
 git clone https://github.com/yourusername/flask-builder.git
 cd flask-builder
 
-# 실행
+# CLI 모드 실행
 python main.py
+```
+
+### GUI 모드 (새로운 방식)
+```bash
+# Electron 앱 디렉토리로 이동
+cd electron-app
+
+# 의존성 설치
+npm install
+
+# GUI 앱 실행
+npm run dev
+```
+
+### 🏗️ 빌드 및 배포
+
+#### 로컬 빌드
+```bash
+# 모든 플랫폼용 빌드
+./scripts/build.sh          # Linux/macOS
+scripts/build.bat           # Windows
+
+# 특정 플랫폼용 빌드
+./scripts/build.sh win      # Windows용만
+./scripts/build.sh mac      # macOS용만
+./scripts/build.sh linux    # Linux용만
+```
+
+#### GitHub Actions 자동 빌드
+태그를 푸시하면 자동으로 빌드됩니다:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 📋 사용법
 
+### CLI 모드
 1. **프로젝트 이름 입력** (예: `my_flask_app`)
 2. **프로젝트 생성 경로 선택** (예: `P:\flask`)
 3. **데이터베이스 설정**:
    - PostgreSQL, MySQL, SQL Server, SQLite 중 선택
    - 연결 정보 입력
 4. **자동 생성 완료!**
+
+### GUI 모드
+1. **프로젝트 설정**: 프로젝트 이름 입력, 폴더 선택 버튼으로 경로 지정
+2. **데이터베이스 설정**: 드롭다운으로 DB 타입 선택, 연결 정보 입력
+3. **프로젝트 생성**: "프로젝트 생성" 버튼 클릭
+4. **실시간 모니터링**: 생성 과정을 실시간으로 확인
+5. **완료**: 성공 메시지 확인 후 생성된 프로젝트 사용
 
 ## 🏗️ 생성되는 프로젝트 구조
 
@@ -152,7 +195,7 @@ flask run
 
 ```
 flask_builder/
-├── main.py                 # 메인 실행 파일
+├── main.py                 # 메인 실행 파일 (CLI + GUI 모드)
 ├── config.py              # 설정 상수
 ├── utils/                 # 유틸리티
 │   ├── __init__.py
@@ -161,20 +204,26 @@ flask_builder/
 │   ├── __init__.py
 │   ├── database_builder.py # DB 설정 빌더
 │   └── project_builder.py  # 프로젝트 구조 빌더
-└── templates/             # 템플릿 파일들
-    ├── __init__.py
-    ├── gitignore.py       # .gitignore 템플릿
-    ├── python_files.py    # Python 파일 템플릿
-    ├── config_templates.py # 설정 파일 템플릿
-    ├── extensions_templates.py # 확장 템플릿
-    ├── models_templates.py # 모델 템플릿
-    ├── routes_templates.py # 라우트 템플릿
-    ├── services_templates.py # 서비스 템플릿
-    ├── utils_templates.py # 유틸리티 템플릿
-    ├── html_templates.py  # HTML 템플릿
-    ├── auth_templates.py  # 인증 템플릿
-    ├── posts_templates.py # 게시글 템플릿
-    └── static_files.py    # 정적 파일 템플릿
+├── templates/             # 템플릿 파일들
+│   ├── __init__.py
+│   ├── gitignore.py       # .gitignore 템플릿
+│   ├── python_files.py    # Python 파일 템플릿
+│   ├── config_templates.py # 설정 파일 템플릿
+│   ├── extensions_templates.py # 확장 템플릿
+│   ├── models_templates.py # 모델 템플릿
+│   ├── routes_templates.py # 라우트 템플릿
+│   ├── services_templates.py # 서비스 템플릿
+│   ├── utils_templates.py # 유틸리티 템플릿
+│   ├── html_templates.py  # HTML 템플릿
+│   ├── auth_templates.py  # 인증 템플릿
+│   ├── posts_templates.py # 게시글 템플릿
+│   └── static_files.py    # 정적 파일 템플릿
+└── electron-app/          # GUI 애플리케이션
+    ├── src/               # React 소스 코드
+    ├── main.js            # Electron 메인 프로세스
+    ├── preload.js         # 보안 API 노출
+    ├── package.json       # Node.js 의존성
+    └── webpack.config.js  # 번들링 설정
 ```
 
 ## 🎨 모듈화의 장점
