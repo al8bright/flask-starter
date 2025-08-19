@@ -133,10 +133,7 @@ testproject/
 my_flask_app/
 *_flask_app/
 
-# Node.js dependencies
-electron-app/node_modules/
-electron-app/dist/
-electron-app/.webpack/
+
 
 # IDE files
 .vscode/
