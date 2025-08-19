@@ -70,8 +70,8 @@ jobs:
         files: |
           electron-app/dist/*.exe
           electron-app/dist/*.dmg
-          electron-app/dist/*.AppImage
         draft: false
         prerelease: false
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
