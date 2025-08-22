@@ -37,17 +37,6 @@ APP_INIT = dedent("""
         from app.routes import init_app as init_routes
         init_routes(app)
         
-        # 전역 context processor 추가
-        @app.context_processor
-        def inject_locale():
-            '''템플릿에 현재 로케일 주입'''
-            from flask_babel import get_locale
-            return {'get_locale': get_locale}
-        
-
-        
-
-        
         # Jinja2 필터 추가
         @app.template_filter('nl2br')
         def nl2br_filter(text):

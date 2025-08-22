@@ -8,34 +8,26 @@ LOGIN_HTML = """{% extends 'base.html' %}
 <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-md w-full space-y-8">
     <div>
-      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-        {{ _('Login') }}
-      </h2>
+             <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+         로그인
+       </h2>
     </div>
     
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="bg-{{ 'red' if category == 'error' else 'blue' }}-100 border border-{{ 'red' if category == 'error' else 'blue' }}-400 text-{{ 'red' if category == 'error' else 'blue' }}-700 px-4 py-3 rounded">
-            {{ message }}
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    {% include 'flash_messages.html' %}
     
     <form class="mt-8 space-y-6" method="POST">
       <div class="rounded-md shadow-sm -space-y-px">
         <div>
-          <label for="username" class="sr-only">{{ _('Username') }}</label>
-          <input id="username" name="username" type="text" required 
-                 class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                 placeholder="{{ _('Username') }}">
-        </div>
-        <div>
-          <label for="password" class="sr-only">{{ _('Password') }}</label>
-          <input id="password" name="password" type="password" required 
-                 class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                 placeholder="{{ _('Password') }}">
+                     <label for="username" class="sr-only">사용자명</label>
+           <input id="username" name="username" type="text" required 
+                  class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                  placeholder="사용자명">
+         </div>
+         <div>
+           <label for="password" class="sr-only">비밀번호</label>
+           <input id="password" name="password" type="password" required 
+                  class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                  placeholder="비밀번호">
         </div>
       </div>
 
@@ -50,10 +42,10 @@ LOGIN_HTML = """{% extends 'base.html' %}
       </div>
 
       <div>
-        <button type="submit" 
-                class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-          {{ _('Login') }}
-        </button>
+                 <button type="submit" 
+                 class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+           로그인
+         </button>
       </div>
     </form>
   </div>

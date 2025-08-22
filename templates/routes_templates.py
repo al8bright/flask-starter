@@ -180,28 +180,14 @@ POSTS_ROUTES = dedent(
 
 MAIN_ROUTES = dedent(
     """
-    from flask import Blueprint, redirect, url_for, request, session
-    from flask_babel import get_locale
+    from flask import Blueprint, redirect, url_for, render_template
     
     main_bp = Blueprint('main', __name__)
     
     @main_bp.route('/')
     def index():
-        '''메인 페이지 - 게시글 목록으로 리다이렉트'''
-        return redirect(url_for('posts.list'))
-    
-    @main_bp.route('/set-locale/<locale>')
-    def set_locale(locale):
-        '''언어 설정'''
-        if locale in ['ko', 'en']:
-            session['locale'] = locale
-        return redirect(request.referrer or url_for('main.index'))
-    
-    @main_bp.context_processor
-    def inject_locale():
-        '''템플릿에 현재 로케일 주입'''
-        from flask_babel import get_locale
-        return {'get_locale': get_locale}
+        '''메인 페이지'''
+        return render_template('index.html')
     """
 )
 

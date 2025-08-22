@@ -5,63 +5,60 @@
 POSTS_LIST_HTML = """{% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ _('Latest Posts') }}</h1>
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+  <!-- 헤더 섹션 -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 lg:mb-8">
+    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-0">📝 게시글 목록</h1>
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('posts.new') }}" 
-         class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        {{ _('Write Post') }}
+         class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 lg:px-6 rounded-lg transition-colors duration-200 text-sm lg:text-base">
+        ✏️ 새 글 작성
       </a>
     {% endif %}
   </div>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="mb-4 bg-{{ 'red' if category == 'error' else 'green' }}-100 border border-{{ 'red' if category == 'error' else 'green' }}-400 text-{{ 'red' if category == 'error' else 'green' }}-700 px-4 py-3 rounded">
-          {{ message }}
-        </div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
+  <!-- 플래시 메시지 -->
+  {% include 'flash_messages.html' %}
 
   {% if pagination and pagination.items %}
-    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+    <!-- 게시글 목록 -->
+    <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl overflow-hidden">
       <ul class="divide-y divide-gray-200 dark:divide-gray-700">
         {% for post in pagination.items %}
-          <li>
-            <div class="px-4 py-4 sm:px-6">
-              <div class="flex items-center justify-between">
+          <li class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+            <div class="px-4 py-4 sm:px-6 lg:px-8">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
                 <div class="flex-1 min-w-0">
                   <a href="{{ url_for('posts.detail', post_id=post.id) }}" 
-                     class="block hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <div class="flex items-center justify-between">
-                      <p class="text-sm font-medium text-indigo-600 dark:text-indigo-400 truncate">
+                     class="block group">
+                    <div class="flex items-center justify-between mb-2">
+                      <h3 class="text-base lg:text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200 truncate">
                         {{ post.title }}
-                      </p>
+                      </h3>
                       {% if post.has_file %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 ml-2">
                           📎 첨부파일
                         </span>
                       {% endif %}
                     </div>
-                    <div class="mt-2 flex justify-between">
-                      <div class="sm:flex">
-                        <p class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                          👤 {{ post.author.username }}
-                        </p>
-                        <p class="mt-2 flex items-center text-sm text-gray-500 dark:text-gray-400 sm:mt-0 sm:ml-6">
-                          📅 {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
-                        </p>
-                      </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 dark:text-gray-400 space-y-1 sm:space-y-0 sm:space-x-6">
+                      <span class="flex items-center">
+                        <span class="mr-1">👤</span>
+                        {{ post.author.username }}
+                      </span>
+                      <span class="flex items-center">
+                        <span class="mr-1">📅</span>
+                        {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+                      </span>
                     </div>
                   </a>
                 </div>
                 {% if current_user.is_authenticated and current_user.id == post.user_id %}
-                  <div class="ml-4 flex-shrink-0 flex space-x-2">
+                  <div class="flex-shrink-0">
                     <a href="{{ url_for('posts.edit', post_id=post.id) }}" 
-                       class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-sm">{{ _('Edit') }}</a>
+                       class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors duration-200">
+                      ✏️ 수정
+                    </a>
                   </div>
                 {% endif %}
               </div>
@@ -73,44 +70,47 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
 
     <!-- 페이지네이션 -->
     {% if pagination.pages > 1 %}
-      <div class="mt-6 flex items-center justify-between">
-        <div class="flex-1 flex justify-between sm:hidden">
+      <div class="mt-8 flex items-center justify-between">
+        <!-- 모바일 페이지네이션 -->
+        <div class="flex justify-between w-full sm:hidden">
           {% if pagination.has_prev %}
             <a href="{{ url_for('posts.list', page=pagination.prev_num) }}" 
-               class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              이전
+               class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+              ← 이전
             </a>
           {% endif %}
           {% if pagination.has_next %}
             <a href="{{ url_for('posts.list', page=pagination.next_num) }}" 
-               class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              다음
+               class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+              다음 →
             </a>
           {% endif %}
         </div>
+        
+        <!-- 데스크톱 페이지네이션 -->
         <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
           <div>
-            <p class="text-sm text-gray-700">
+            <p class="text-sm text-gray-700 dark:text-gray-300">
               <span class="font-medium">{{ pagination.page }}</span> / 
               <span class="font-medium">{{ pagination.pages }}</span> 페이지
             </p>
           </div>
           <div>
-            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            <nav class="relative z-0 inline-flex rounded-lg shadow-sm -space-x-px">
               {% for page_num in pagination.iter_pages() %}
                 {% if page_num %}
                   {% if page_num != pagination.page %}
                     <a href="{{ url_for('posts.list', page=page_num) }}" 
-                       class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                       class="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 relative inline-flex items-center px-3 py-2 border text-sm font-medium transition-colors duration-200">
                       {{ page_num }}
                     </a>
                   {% else %}
-                    <span class="bg-indigo-50 border-indigo-500 text-indigo-600 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                    <span class="bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400 relative inline-flex items-center px-3 py-2 border text-sm font-medium">
                       {{ page_num }}
                     </span>
                   {% endif %}
                 {% else %}
-                  <span class="bg-white border-gray-300 text-gray-500 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                  <span class="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 relative inline-flex items-center px-3 py-2 border text-sm font-medium">
                     ...
                   </span>
                 {% endif %}
@@ -121,12 +121,15 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
       </div>
     {% endif %}
   {% else %}
-    <div class="text-center py-12">
-      <p class="text-gray-500 text-lg">게시글이 없습니다.</p>
+    <!-- 빈 상태 -->
+    <div class="text-center py-12 lg:py-16">
+      <div class="text-6xl mb-4">📝</div>
+      <h3 class="text-lg lg:text-xl font-semibold text-gray-900 dark:text-white mb-2">게시글이 없습니다</h3>
+      <p class="text-gray-500 dark:text-gray-400 mb-6">첫 번째 게시글을 작성해보세요!</p>
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('posts.new') }}" 
-           class="mt-4 inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          첫 번째 글 작성하기
+           class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+          ✏️ 첫 번째 글 작성하기
         </a>
       {% endif %}
     </div>
@@ -138,29 +141,45 @@ POSTS_LIST_HTML = """{% extends 'base.html' %}
 POSTS_DETAIL_HTML = """{% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <div class="px-4 py-5 sm:px-6">
-      <div class="flex justify-between items-start">
-        <div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900">
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+  <!-- 게시글 상세 -->
+  <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl overflow-hidden">
+    <!-- 헤더 -->
+    <div class="px-4 py-6 sm:px-6 lg:px-8 border-b border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
+        <div class="flex-1">
+          <h1 class="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white mb-2">
             {{ post.title }}
-          </h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            작성자: {{ post.author.username }} | 작성일: {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
-          </p>
+          </h1>
+          <div class="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 dark:text-gray-400 space-y-1 sm:space-y-0 sm:space-x-6">
+            <span class="flex items-center">
+              <span class="mr-1">👤</span>
+              {{ post.author.username }}
+            </span>
+            <span class="flex items-center">
+              <span class="mr-1">📅</span>
+              {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+            </span>
+            {% if post.updated_at != post.created_at %}
+              <span class="flex items-center">
+                <span class="mr-1">✏️</span>
+                수정됨: {{ post.updated_at.strftime('%Y-%m-%d %H:%M') }}
+              </span>
+            {% endif %}
+          </div>
         </div>
+        
         {% if current_user.is_authenticated and current_user.id == post.user_id %}
-          <div class="flex space-x-2">
+          <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <a href="{{ url_for('posts.edit', post_id=post.id) }}" 
-               class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded">
-              수정
+               class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
+              ✏️ 수정
             </a>
             <form method="POST" action="{{ url_for('posts.delete', post_id=post.id) }}" 
                   onsubmit="return confirm('정말 삭제하시겠습니까?')" class="inline">
               <button type="submit" 
-                      class="bg-red-500 hover:bg-red-700 text-white text-sm font-bold py-2 px-4 rounded">
-                삭제
+                      class="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
+                🗑️ 삭제
               </button>
             </form>
           </div>
@@ -168,30 +187,38 @@ POSTS_DETAIL_HTML = """{% extends 'base.html' %}
       </div>
     </div>
     
-    <div class="border-t border-gray-200">
-      <div class="px-4 py-5 sm:p-6">
-        <div class="prose max-w-none">
+    <!-- 본문 -->
+    <div class="px-4 py-6 sm:px-6 lg:px-8">
+      <div class="prose prose-lg max-w-none dark:prose-invert">
+        <div class="text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
           {{ post.content | nl2br }}
         </div>
-        
-        {% if post.has_file %}
-          <div class="mt-6 pt-6 border-t border-gray-200">
-            <h4 class="text-lg font-medium text-gray-900 mb-2">첨부파일</h4>
-            <a href="{{ url_for('files.download', post_id=post.id) }}" 
-               class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              📎 {{ post.filename }} 다운로드
-            </a>
-          </div>
-        {% endif %}
       </div>
+      
+      {% if post.has_file %}
+        <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📎 첨부파일</h3>
+          <a href="{{ url_for('files.download', post_id=post.id) }}" 
+             class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200">
+            📥 {{ post.filename }} 다운로드
+          </a>
+        </div>
+      {% endif %}
     </div>
   </div>
   
-  <div class="mt-6">
+  <!-- 하단 버튼 -->
+  <div class="mt-6 lg:mt-8 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
     <a href="{{ url_for('posts.list') }}" 
-       class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
-      목록으로 돌아가기
+       class="inline-flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+      ← 목록으로 돌아가기
     </a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('posts.new') }}" 
+         class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+        ✏️ 새 글 작성
+      </a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -200,78 +227,93 @@ POSTS_DETAIL_HTML = """{% extends 'base.html' %}
 POSTS_FORM_HTML = """{% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <div class="px-4 py-5 sm:px-6">
-      <h3 class="text-lg leading-6 font-medium text-gray-900">
-        {% if post %}게시글 수정{% else %}새 게시글 작성{% endif %}
-      </h3>
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+  <!-- 폼 컨테이너 -->
+  <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl overflow-hidden">
+    <!-- 헤더 -->
+    <div class="px-4 py-6 sm:px-6 lg:px-8 border-b border-gray-200 dark:border-gray-700">
+      <h1 class="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">
+        {% if post %}✏️ 게시글 수정{% else %}✏️ 새 게시글 작성{% endif %}
+      </h1>
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+        {% if post %}게시글을 수정합니다.{% else %}새로운 게시글을 작성합니다.{% endif %}
+      </p>
     </div>
     
-    <div class="border-t border-gray-200">
-      <form method="POST" enctype="multipart/form-data" class="px-4 py-5 sm:p-6">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="mb-4 bg-{{ 'red' if category == 'error' else 'green' }}-100 border border-{{ 'red' if category == 'error' else 'green' }}-400 text-{{ 'red' if category == 'error' else 'green' }}-700 px-4 py-3 rounded">
-                {{ message }}
+    <!-- 폼 -->
+    <form method="POST" enctype="multipart/form-data" class="px-4 py-6 sm:px-6 lg:px-8">
+      <!-- 플래시 메시지 -->
+      {% include 'flash_messages.html' %}
+      
+      <div class="space-y-6">
+        <!-- 제목 필드 -->
+        <div>
+          <label for="title" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            📝 제목 <span class="text-red-500">*</span>
+          </label>
+          <input type="text" name="title" id="title" required
+                 value="{{ post.title if post else '' }}"
+                 placeholder="게시글 제목을 입력하세요"
+                 class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 transition-colors duration-200">
+        </div>
+
+        <!-- 내용 필드 -->
+        <div>
+          <label for="content" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            📄 내용 <span class="text-red-500">*</span>
+          </label>
+          <textarea id="content" name="content" rows="12" required
+                    placeholder="게시글 내용을 입력하세요"
+                    class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 resize-y transition-colors duration-200">{{ post.content if post else '' }}</textarea>
+        </div>
+
+        <!-- 파일 첨부 필드 -->
+        <div>
+          <label for="file" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            📎 첨부파일
+          </label>
+          <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors duration-200">
+            <div class="space-y-1 text-center">
+              <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                <label for="file" class="relative cursor-pointer bg-white dark:bg-gray-700 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                  <span>파일 선택</span>
+                  <input id="file" name="file" type="file" class="sr-only">
+                </label>
+                <p class="pl-1">또는 드래그 앤 드롭</p>
               </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-        
-        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-          <div class="sm:col-span-6">
-            <label for="title" class="block text-sm font-medium text-gray-700">
-              제목
-            </label>
-            <div class="mt-1">
-              <input type="text" name="title" id="title" required
-                     value="{{ post.title if post else '' }}"
-                     class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-            </div>
-          </div>
-
-          <div class="sm:col-span-6">
-            <label for="content" class="block text-sm font-medium text-gray-700">
-              내용
-            </label>
-            <div class="mt-1">
-              <textarea id="content" name="content" rows="10" required
-                        class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">{{ post.content if post else '' }}</textarea>
-            </div>
-          </div>
-
-          <div class="sm:col-span-6">
-            <label for="file" class="block text-sm font-medium text-gray-700">
-              첨부파일
-            </label>
-            <div class="mt-1">
-              <input type="file" name="file" id="file"
-                     class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-            </div>
-            {% if post and post.has_file %}
-              <p class="mt-2 text-sm text-gray-500">
-                현재 첨부파일: {{ post.filename }}
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                PNG, JPG, GIF, PDF, DOC, XLS 최대 10MB
               </p>
-            {% endif %}
+            </div>
           </div>
+          {% if post and post.has_file %}
+            <div class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <p class="text-sm text-blue-700 dark:text-blue-300">
+                <span class="font-medium">현재 첨부파일:</span> {{ post.filename }}
+              </p>
+              <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                새 파일을 선택하면 기존 파일이 교체됩니다.
+              </p>
+            </div>
+          {% endif %}
         </div>
+      </div>
 
-        <div class="pt-5">
-          <div class="flex justify-end space-x-3">
-            <a href="{{ url_for('posts.list') }}" 
-               class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-              취소
-            </a>
-            <button type="submit" 
-                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-              {% if post %}수정{% else %}작성{% endif %}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+      <!-- 버튼 영역 -->
+      <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
+        <a href="{{ url_for('posts.list') }}" 
+           class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-semibold rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200">
+          ❌ 취소
+        </a>
+        <button type="submit" 
+                class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200">
+          {% if post %}💾 수정 완료{% else %}📝 작성 완료{% endif %}
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

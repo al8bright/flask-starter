@@ -14,8 +14,7 @@ STORAGE_UTILS = dedent(
     
     def allowed_file(filename):
         '''허용된 파일 확장자인지 확인'''
-        return '.' in filename and \
-               filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
     
     
     def ensure_uploads_dir():
@@ -116,9 +115,7 @@ PAGINATION_UTILS = dedent(
             '''페이지 번호 반복자'''
             last = 0
             for num in range(1, self.pages + 1):
-                if num <= left_edge or \
-                   (num > self.page - left_current - 1 and num < self.page + right_current) or \
-                   num > self.pages - right_edge:
+                if num <= left_edge or (num > self.page - left_current - 1 and num < self.page + right_current) or num > self.pages - right_edge:
                     if last + 1 != num:
                         yield None
                     yield num
@@ -132,22 +129,26 @@ LOGGING_UTILS = dedent(
     from logging.handlers import RotatingFileHandler
     import os
     
-    
+
     def setup_logging(app):
         '''로깅 설정'''
-        if not app.debug and not app.testing:
-            if not os.path.exists('logs'):
-                os.mkdir('logs')
-            
-            file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
-            file_handler.setFormatter(logging.Formatter(
-                '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-            ))
-            file_handler.setLevel(logging.INFO)
-            app.logger.addHandler(file_handler)
-            
-            app.logger.setLevel(logging.INFO)
-            app.logger.info('애플리케이션 시작')
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+
+        file_handler = RotatingFileHandler('logs/app.log', maxBytes=1024*1024, backupCount=10, encoding='utf-8')
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(name)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('애플리케이션 시작')
+
+        @app.errorhandler(Exception)
+        def log_exceptions(error):
+            app.logger.error(f'예외 발생: {str(error)}', exc_info=True)
+            return None  
     """
 )
 

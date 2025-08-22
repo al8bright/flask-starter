@@ -47,6 +47,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// 모바일 메뉴 토글 기능
+document.addEventListener('DOMContentLoaded', function() {
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    
+    if (mobileMenuToggle && mobileMenu) {
+        mobileMenuToggle.addEventListener('click', function() {
+            mobileMenu.classList.toggle('hidden');
+        });
+        
+        // 화면 크기 변경 시 모바일 메뉴 숨김
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 640) { // sm 브레이크포인트
+                mobileMenu.classList.add('hidden');
+            }
+        });
+        
+        // 메뉴 외부 클릭 시 메뉴 닫기
+        document.addEventListener('click', function(e) {
+            if (!mobileMenuToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
+                mobileMenu.classList.add('hidden');
+            }
+        });
+    }
+});
+
 // 플래시 메시지 자동 숨김
 document.addEventListener('DOMContentLoaded', function() {
     const flashMessages = document.querySelectorAll('.flash-message');
@@ -82,6 +108,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('필수 필드를 모두 입력해주세요.');
             }
         });
+    });
+});
+
+// 스크롤 시 헤더 스타일 변경
+document.addEventListener('DOMContentLoaded', function() {
+    const header = document.querySelector('header');
+    
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 10) {
+            header.classList.add('shadow-lg');
+            header.classList.add('backdrop-blur-sm');
+            header.classList.add('bg-white/95');
+            header.classList.add('dark:bg-gray-800/95');
+        } else {
+            header.classList.remove('shadow-lg');
+            header.classList.remove('backdrop-blur-sm');
+            header.classList.remove('bg-white/95');
+            header.classList.remove('dark:bg-gray-800/95');
+        }
     });
 });
 """
