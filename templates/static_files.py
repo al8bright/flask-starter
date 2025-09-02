@@ -156,6 +156,8 @@ README = dedent(
     venv\\Scripts\\activate
 
     # 2) 데이터베이스 마이그레이션
+    flask db init
+    flask db migrate -m "Initial migration"
     flask db upgrade
 
     # 3) 애플리케이션 실행
