@@ -113,8 +113,12 @@ INIT_DB = dedent("""
             if not os.path.exists('migrations'):
                 print("Flask-Migrate 초기화 중...")
                 try:
-                    subprocess.run([sys.executable, '-m', 'flask', 'db', 'init'], 
-                                 check=True, capture_output=True, text=True)
+                    if os.name == "nt":
+                        subprocess.run([sys.executable, '-m', 'flask', 'db', 'init'], 
+                                     check=True, capture_output=True, text=True)
+                    else:
+                        subprocess.run([sys.executable, '-m', 'flask', 'db', 'init'], 
+                                     check=True, capture_output=True, text=True, encoding='utf-8')
                     print("[SUCCESS] Flask-Migrate 초기화 완료")
                 except subprocess.CalledProcessError as e:
                     print(f"[WARN] Flask-Migrate 초기화 실패: {e}")
@@ -122,8 +126,12 @@ INIT_DB = dedent("""
             # 2. 마이그레이션 파일 생성
             print("마이그레이션 파일 생성 중...")
             try:
-                subprocess.run([sys.executable, '-m', 'flask', 'db', 'migrate', '-m', 'Initial migration'], 
-                             check=True, capture_output=True, text=True)
+                if os.name == "nt":
+                    subprocess.run([sys.executable, '-m', 'flask', 'db', 'migrate', '-m', 'Initial migration'], 
+                                 check=True, capture_output=True, text=True)
+                else:
+                    subprocess.run([sys.executable, '-m', 'flask', 'db', 'migrate', '-m', 'Initial migration'], 
+                                 check=True, capture_output=True, text=True, encoding='utf-8')
                 print("[SUCCESS] 마이그레이션 파일 생성 완료")
             except subprocess.CalledProcessError as e:
                 print(f"[WARN] 마이그레이션 파일 생성 실패: {e}")
@@ -131,8 +139,12 @@ INIT_DB = dedent("""
             # 3. 마이그레이션 적용
             print("마이그레이션 적용 중...")
             try:
-                subprocess.run([sys.executable, '-m', 'flask', 'db', 'upgrade'], 
-                             check=True, capture_output=True, text=True)
+                if os.name == "nt":
+                    subprocess.run([sys.executable, '-m', 'flask', 'db', 'upgrade'], 
+                                 check=True, capture_output=True, text=True)
+                else:
+                    subprocess.run([sys.executable, '-m', 'flask', 'db', 'upgrade'], 
+                                 check=True, capture_output=True, text=True, encoding='utf-8')
                 print("[SUCCESS] 마이그레이션 적용 완료")
                 
                 # 마이그레이션 후 테이블 존재 확인

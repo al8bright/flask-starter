@@ -251,11 +251,18 @@ class ProjectBuilder:
         venv_dir = self.root / "venv"
         info("가상환경(venv) 생성 중…")
         
-        subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+        # Windows 환경에서는 인코딩을 지정하지 않음 (시스템 기본 사용)
+        if os.name == "nt":
+            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+        else:
+            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)], encoding='utf-8')
         
         pip_path = venv_dir / ("Scripts/pip.exe" if os.name == "nt" else "bin/pip")
-        info("패키지 설치 중… (이건 좀 걸릴 수 있음)")
-        subprocess.check_call([str(pip_path), "install", "-r", str(self.root / "requirements.txt")])
+        info("패키지 설치 중…")
+        if os.name == "nt":
+            subprocess.check_call([str(pip_path), "install", "-r", str(self.root / "requirements.txt")])
+        else:
+            subprocess.check_call([str(pip_path), "install", "-r", str(self.root / "requirements.txt")], encoding='utf-8')
     
     def _setup_database(self) -> None:
         """데이터베이스 설정"""
@@ -277,11 +284,19 @@ class ProjectBuilder:
             self._test_database_connection(py_path, env)
             
             # 2. 데이터베이스 초기화 스크립트 실행
-            subprocess.check_call(
-                [str(py_path), str(self.root / "scripts" / "init_db.py")], 
-                cwd=str(self.root), 
-                env=env
-            )
+            if os.name == "nt":
+                subprocess.check_call(
+                    [str(py_path), str(self.root / "scripts" / "init_db.py")], 
+                    cwd=str(self.root), 
+                    env=env
+                )
+            else:
+                subprocess.check_call(
+                    [str(py_path), str(self.root / "scripts" / "init_db.py")], 
+                    cwd=str(self.root), 
+                    env=env,
+                    encoding='utf-8'
+                )
             info("데이터베이스 초기화 완료")
             
         except subprocess.CalledProcessError as e:
@@ -345,13 +360,23 @@ except Exception as e:
         test_file.write_text(test_script, encoding="utf-8")
         
         try:
-            result = subprocess.run(
-                [str(py_path), str(test_file)],
-                cwd=str(self.root),
-                env=env,
-                capture_output=True,
-                text=True
-            )
+            if os.name == "nt":
+                result = subprocess.run(
+                    [str(py_path), str(test_file)],
+                    cwd=str(self.root),
+                    env=env,
+                    capture_output=True,
+                    text=True
+                )
+            else:
+                result = subprocess.run(
+                    [str(py_path), str(test_file)],
+                    cwd=str(self.root),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8'
+                )
             
             if result.returncode == 0:
                 info(result.stdout.strip())
