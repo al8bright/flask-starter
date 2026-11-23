@@ -11,6 +11,8 @@
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
   {#- fetch 로 POST 하는 스크립트(편집기 이미지 업로드)가 X-CSRFToken 헤더에 싣는 값 — htmx 는 아래 hx-headers 를 쓴다. -#}
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  {#- 화면별 머리 정보(meta description·canonical 등)는 head 블록에, 화면 전용 스크립트는 scripts 블록에 둔다. -#}
+  {% block head %}{% endblock %}
   {% block scripts %}{% endblock %}
 </head>
 {#- htmx 요청에 CSRF 토큰을 싣는다 — hx-headers 의 JSON 은 eval 하지 않는다. -#}
@@ -43,9 +45,12 @@
 
     {% include "partials/alerts_region.html" %}
 
+    {#- 본문 기본은 가운데 5xl 폭이다. 전체 폭 띠가 필요한 화면은 main 블록을 통째로 바꾼다(그때도 <main> 은 하나만 둔다). -#}
+    {% block main %}
     <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
       {% block content %}{% endblock %}
     </main>
+    {% endblock %}
 
     <footer class="border-t border-line">
       <p class="mx-auto max-w-5xl px-4 py-6 text-xs text-muted">{{ project_name }}</p>

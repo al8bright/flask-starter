@@ -4,7 +4,7 @@
 여기서는 서버가 지켜야 할 계약을 고정한다.
 - 이미지 업로드: Accept: application/json 이면 JSON 으로 답한다(성공·오류·로그인 만료 모두).
 - 출력 계약: 편집기가 만드는 마크업은 정화(core/sanitize.py) 후에도 그대로 남아야 한다.
-- 정적 점검: 모듈 import 경로가 실제 파일을 가리키고, CSP 를 깨는 코드(eval·style 속성)가 없다.
+- 정적 점검: 모듈 import 경로가 실제 파일을 가리킨다(CSP 를 깨는 코드 검사는 모든 스크립트 대상 — test_static_js.py).
 """
 
 import io
@@ -154,18 +154,9 @@ def test_editor_youtube_markup_survives_sanitizer():
 
 
 # ---------------------------------------------------------------------------
-# 정적 점검 — 빌드 단계가 없으므로 import 경로 오류·CSP 위반 코드를 여기서 막는다
+# 정적 점검 — 빌드 단계가 없으므로 import 경로 오류를 여기서 막는다
 
 IMPORT_RE = re.compile(r"""^\s*import\s[^;]*?from\s+["']([^"']+)["']""", re.MULTILINE | re.DOTALL)
-FORBIDDEN = {
-    "eval(": "eval 은 CSP(unsafe-eval 없음)에 막힌다",
-    "new Function": "문자열 코드 실행은 CSP 에 막힌다",
-    'setAttribute("style"': "style 속성은 CSP 에 막힌다 — el.style.<속성> 을 쓴다",
-    "style=": "HTML 문자열의 style 속성은 CSP 에 막힌다",
-    "cssText": "cssText 대신 개별 속성을 쓴다(의도 명확화)",
-    "document.write": "document.write 금지",
-    "jquery": "DOM 유틸리티 라이브러리 금지(★MUST #1)",
-}
 
 
 def editor_files() -> list[Path]:
@@ -179,11 +170,3 @@ def test_editor_module_imports_resolve():
         for spec in IMPORT_RE.findall(path.read_text(encoding="utf-8")):
             assert spec.startswith("./") and spec.endswith(".js"), f"{path.name}: 상대 경로 .js 만 import 한다 — {spec}"
             assert (path.parent / spec).is_file(), f"{path.name}: {spec} 파일이 없다"
-
-
-def test_editor_modules_avoid_csp_breaking_code():
-    for path in editor_files():
-        text = path.read_text(encoding="utf-8")
-        code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(("//", "*", "/*")))
-        for needle, reason in FORBIDDEN.items():
-            assert needle.lower() not in code.lower(), f"{path.name}: {needle} — {reason}"
