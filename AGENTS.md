@@ -96,7 +96,7 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 
 - `skeleton/.claude/skills/stack-versions/SKILL.md` §5 절차를 따른다.
 - **배포 24시간 규칙**: 배포 후 24시간이 지난 버전만 선정한다. pip 은 `pip install --uploaded-prior-to P1D`(pip 26.3 이상, 정수 일 단위)로 강제할 수 있다.
-- 동작을 좌우하는 전이 의존성(현재 `werkzeug`)은 `requirements.txt` 에 직접 핀한다.
+- 동작을 좌우하는 전이 의존성(현재 `werkzeug`·`jinja2`·`markupsafe`·`itsdangerous`)은 `requirements.txt` 에 직접 핀한다.
 - 공통 계층이 쓰는 패키지(sqlalchemy·alembic·psycopg2-binary·pydantic·pydantic-settings·PyJWT·bcrypt·nh3·pillow)는 원본 저장소와 같은 핀을 유지한다. 원본보다 먼저 올리지 않는다.
 - 검토 결과는 `docs/reviews/YYYY-MM-DD-dependency-upgrade.md` 로 남긴다.
 

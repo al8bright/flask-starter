@@ -51,4 +51,4 @@
 - [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증
 - [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
 - [x] bcrypt 72-byte 가드 테스트 — `tests/test_passwords.py` 로 추가(로그인 422·72 bytes 경계 로그인·`hash_password` 거부·`verify_password` False·최소 길이·미존재 계정 응답 동일·더미 해시 비용). 생성물 pytest 172건 통과
-- [ ] `requirements.txt` 핀 검토 — 직접 의존성만 고정(전이 의존성 jinja2·markupsafe·itsdangerous·click·blinker 는 미고정)
+- [x] `requirements.txt` 핀 검토 — 화면 동작을 좌우하는 전이 의존성 jinja2 3.1.6·markupsafe 3.0.4·itsdangerous 2.2.0 을 직접 고정(click·blinker 는 미고정 유지). `--uploaded-prior-to P1D` 설치·`pip check`·pytest 172건·`pip-audit` 통과

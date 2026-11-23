@@ -247,7 +247,7 @@ python tools\check_projects.py --audit --files --output 점검.md      # 경로�
 |---|---|---|---|
 | Python 하한 | 이상이면 기존 설치본 재사용 | `≥ 3.13` | [`versions.env`](skeleton/scripts/versions.env) |
 | Python 설치 핀 | pyenv 가 설치·활성화 | `3.13.14` | [`.python-version`](skeleton/.python-version) |
-| Python 패키지 | `==` **정확 고정** (재현성 우선) | flask `3.1.3`, werkzeug `3.1.9`, sqlalchemy `2.1.8` 등 17개 | [`requirements.txt`](skeleton/requirements.txt) |
+| Python 패키지 | `==` **정확 고정** (재현성 우선) | flask `3.1.3`, werkzeug `3.1.9`, sqlalchemy `2.1.8` 등 20개(전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함) | [`requirements.txt`](skeleton/requirements.txt) |
 | Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증 | `4.3.5` | `versions.env` + [`tailwind-sha256sums.txt`](skeleton/scripts/tailwind-sha256sums.txt) |
 | htmx | 벤더링 | `2.0.11` | `versions.env` + `skeleton/app/static/js/htmx.min.js` |
 | PostgreSQL | 고정 없음 | 16+ 권장(14 는 2026-11 지원 종료) | — |

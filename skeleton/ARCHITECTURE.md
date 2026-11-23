@@ -61,7 +61,7 @@
 ## 2. 기술 스택 표준
 
 - **언어/런타임**: Python 3.13+ (`X | None` 문법, `Mapped[]` 타입 힌트, PEP 695 제네릭) — 하한은 `scripts/versions.env`(`MIN_PYTHON`), 정확 핀은 루트 `.python-version`(pyenv)
-- **웹 프레임워크**: Flask 3 + Jinja. Flask 가 하한으로만 요구하는 **Werkzeug 도 `requirements.txt` 에 직접 `==` 고정**한다(재현성)
+- **웹 프레임워크**: Flask 3 + Jinja. Flask 가 하한으로만 요구하는 **Werkzeug·Jinja2·MarkupSafe·itsdangerous 도 `requirements.txt` 에 직접 `==` 고정**한다(재현성)
 - **WSGI 서버(운영)**: `waitress`(Windows·Linux) 또는 `gunicorn`(Linux — `requirements.txt` 에 `sys_platform != "win32"` 마커). 개발은 `flask --app app.main run --debug`
 - **CSRF**: Flask-WTF `CSRFProtect` 만 쓴다. 폼 검증은 WTForms 폼 클래스가 아니라 `schemas/` 의 pydantic 모델이다(검증 규칙을 한 벌로 유지 — §8)
 - **ORM/마이그레이션**: SQLAlchemy 2.x (2.0 스타일 `Mapped`/`mapped_column`) + Alembic

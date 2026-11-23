@@ -20,7 +20,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 |---|---|---|
 | Python 하한 | 이상이면 기존 설치본 재사용 | `scripts/versions.env` |
 | Python 설치 핀 | pyenv 가 설치·활성화(정확 버전) | `.python-version` |
-| Python 패키지 | `==` **정확 고정** — 재현성 우선. 동작을 좌우하는 전이 의존성 werkzeug 포함 | `requirements.txt` |
+| Python 패키지 | `==` **정확 고정** — 재현성 우선. 동작을 좌우하는 전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함 | `requirements.txt` |
 | Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증. Node 불필요 | `versions.env` + `tailwind-sha256sums.txt` |
 | htmx | 파일 벤더링(CDN 금지 — CSP `script-src 'self'`) | `app/static/js/htmx.min.js` + `versions.env` |
 | PostgreSQL | 고정 없음 | 16+ 권장(14 는 2026-11 지원 종료) |
@@ -31,6 +31,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 
 ### Flask 3.1 · Werkzeug 3.1
 - ⚠️ **Werkzeug 는 Flask 의 전이 의존성이지만 `requirements.txt` 에 직접 `==` 로 고정한다.** Flask 는 `werkzeug>=3.1.0` 처럼 상한 없이 선언하므로, 고정하지 않으면 설치 시점의 최신 Werkzeug 가 들어온다. Flask 를 올릴 때 두 핀을 **같은 변경에서** 검토한다(§5 의 `pip check`).
+- 같은 이유로 **Jinja2(템플릿 렌더링·자동 이스케이프)·MarkupSafe(`app/main.py` 가 직접 import)·itsdangerous(flash·CSRF 서명 쿠키 형식)** 도 직접 고정한다. Flask 를 올리면 네 핀을 함께 검토한다. click·blinker 는 화면 동작에 관여하지 않아 고정하지 않는다.
 - 요청 크기 상한은 두 겹이다 — `MAX_CONTENT_LENGTH`(전체 본문, 업로드 상한 + 여유)와 `MAX_FORM_MEMORY_SIZE`(파일이 아닌 폼 필드 하나의 최대 크기, Flask 3.1 에서 생긴 설정). 공지 본문처럼 큰 텍스트 필드가 이 값을 넘으면 **413** 이다. 값은 `app/main.py` 에 있다.
 - 앱은 팩토리(`create_app()`)로만 만든다. 실행은 `flask --app app.main run`(개발), `waitress-serve --call app.main:create_app`·`gunicorn "app.main:create_app()"`(운영). 모듈 전역 `app = create_app()` 을 두지 않는다 — import 만으로 DB 시드가 돈다.
 
@@ -79,7 +80,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 
 ## 4. 핀 정책
 - `requirements.txt` 는 **`==` 정확 핀, 재현성 우선**(ARCHITECTURE.md §2).
-- 원칙은 직접 의존성만 핀하지만, **동작을 좌우하는데 상위가 범위를 넓게 열어 둔 전이 의존성은 예외로 직접 핀**한다. 현재 대상: **`werkzeug`**(§3 Flask).
+- 원칙은 직접 의존성만 핀하지만, **동작을 좌우하는데 상위가 범위를 넓게 열어 둔 전이 의존성은 예외로 직접 핀**한다. 현재 대상: **`werkzeug`·`jinja2`·`markupsafe`·`itsdangerous`**(§3 Flask).
 - 런타임 하한을 올린다고 핀을 자동으로 올리지 않는다 — **호환되면 유지**한다.
 - 핀 상향은 보안·기능 목적의 **의식적 결정**으로 한다.
 - 후보 버전은 **배포 후 24시간이 지난 것**만 고른다(당일 배포본은 회수·핫픽스 위험) — §5 의 `--uploaded-prior-to P1D`. Tailwind CLI·htmx 도 같은 기준이다.

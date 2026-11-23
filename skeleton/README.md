@@ -288,7 +288,8 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 | gunicorn (운영 WSGI, Windows 제외) | `== 27.0.1` | pillow (업로드 이미지 재인코딩) | `== 13.0.0` |
 | sqlalchemy | `== 2.1.8` | pytest | `== 9.2.0` |
 | alembic | `== 1.20.1` | ruff | `== 0.17.3` |
-| psycopg2-binary | `== 2.9.13` | | |
+| psycopg2-binary | `== 2.9.13` | jinja2 (Flask 하위 — 직접 고정) | `== 3.1.6` |
+| markupsafe (Flask 하위 — 직접 고정) | `== 3.0.4` | itsdangerous (Flask 하위 — 직접 고정) | `== 2.2.0` |
 
 ## 상세 문서
 

@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-11-23 — 전이 의존성 고정
+
+### Changed (변경)
+
+- `skeleton/requirements.txt`: Flask 의 전이 의존성 중 화면 동작을 좌우하는 `jinja2==3.1.6`(템플릿 렌더링·자동 이스케이프), `markupsafe==3.0.4`(`app/main.py` 가 직접 import), `itsdangerous==2.2.0`(flash·CSRF 서명 쿠키 형식)을 직접 고정하였다. Flask 가 하한만 선언하므로 고정하지 않으면 설치 시점의 최신판이 들어온다. click·blinker 는 화면 동작에 관여하지 않아 고정하지 않는다. 세 버전 모두 각 패키지의 최신판이며 배포 후 24시간이 지났다.
+- 핀 정책 서술을 맞추었다 — `AGENTS.md` 「버전 상향」, 루트 `README.md` 「버전 고정 정책」, `skeleton/README.md` 버전 표, `skeleton/ARCHITECTURE.md` §2, `stack-versions` 스킬 §1·§3·§4.
+
+### 검증
+
+- 임시 스캐폴드(Python 3.13.14, pip 26.3): `pip install --uploaded-prior-to P1D -r requirements.txt` 로 같은 버전이 설치되고 `pip check` 통과, `ruff check` 경고 0, `pytest -W error::DeprecationWarning` 172건 통과. `pip-audit -r skeleton/requirements.txt`(2.10.1) 알려진 취약점 없음.
+
 ## 2026-11-23 — 비밀번호 경계 테스트
 
 ### Added (추가)
