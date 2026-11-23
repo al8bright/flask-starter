@@ -479,7 +479,7 @@ class Order(Base):
   - `db_session_factory` · `db_session`: 테스트 엔진에 바인딩된 세션 팩토리와 테스트별 세션.
   - `flask_app` · `client`: 테스트 DB 에 붙인 앱과 `test_client`.
   - `admin_user` · `normal_user`: 관리자·일반 사용자 행. `admin_client` · `user_client`: 그 계정으로 **실제 로그인**한 클라이언트.
-- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_web_public.py`, `test_web_admin.py` 다.
+- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py` 다.
 - 화면 테스트는 상태 코드와 `get_data(as_text=True)` 안의 핵심 문구로 확인한다. htmx 경로는 partial 만 왔는지(전체 레이아웃 없음), 오류면 `HX-Retarget: #alerts` 인지 확인한다. 브라우저 동작(htmx 교체·CSP 위반 없음)은 테스트로 잡히지 않으므로 개발 서버에서 확인한다.
 
 ```python

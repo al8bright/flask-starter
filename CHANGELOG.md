@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-11-23 — 비밀번호 경계 테스트
+
+### Added (추가)
+
+- `skeleton/tests/test_passwords.py`: 형제 템플릿의 FastAPI 테스트에만 있던 비밀번호 검증을 Flask 폼 POST 기준으로 옮겼다 — 로그인 비밀번호 72 bytes 초과 422(한글 25자), 72 bytes 경계값의 저장·로그인 왕복, `hash_password`·`create_user`·`ensure_admin` 의 초과·최소 길이 거부, `verify_password` 초과 시 `False`, 미존재 계정과 틀린 비밀번호의 응답 동일, 미존재 계정의 더미 해시 1회 검증과 비용 일치.
+
+### 검증
+
+- 임시 스캐폴드(Python 3.13.14): `pip check` 통과, `ruff check` 경고 0, `pytest -W error::DeprecationWarning` 172건 통과.
+
 ## 2026-11-23 — 생성 프로젝트 아키텍처 문서
 
 ### Added (추가)

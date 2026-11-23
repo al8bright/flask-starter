@@ -50,5 +50,5 @@
 - [ ] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic)와 대화형 입력 — PostgreSQL 미기동으로 미검증
 - [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증
 - [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
-- [ ] bcrypt 72-byte 가드 테스트 — 형제 `test_security.py` 의 `test_verify_password_over_72_bytes_returns_false` 는 FastAPI 에 묶여 있어 옮기지 않았다. 로그인 422·`verify_password` False 테스트를 웹 테스트로 추가한다
+- [x] bcrypt 72-byte 가드 테스트 — `tests/test_passwords.py` 로 추가(로그인 422·72 bytes 경계 로그인·`hash_password` 거부·`verify_password` False·최소 길이·미존재 계정 응답 동일·더미 해시 비용). 생성물 pytest 172건 통과
 - [ ] `requirements.txt` 핀 검토 — 직접 의존성만 고정(전이 의존성 jinja2·markupsafe·itsdangerous·click·blinker 는 미고정)
