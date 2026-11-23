@@ -31,8 +31,11 @@
 
 - [ ] 1. 저장소 틀 — AGENTS·CLAUDE·README·CHANGELOG, 루트 `.gitignore`, scaffold 쌍, bootstrap
   - [x] `LICENSE`·`.gitattributes`(루트·skeleton) 복사
-  - [ ] `scaffold.ps1`·`scaffold.sh` — 형제 것을 기준으로 프론트(pnpm) 단계 제거, `.env` 를 루트에 생성, Tailwind 빌드 단계 추가
-  - [ ] `skeleton/scripts/bootstrap.*` — Python 만 확인·설치(Node·pnpm 제거)
+  - [x] `scaffold.ps1`·`scaffold.sh` — 형제 것을 기준으로 프론트(pnpm)·DESIGN.md 테마 단계 제거, `.env` 를 루트에 생성, Tailwind 빌드 단계 추가
+    - 두 스크립트로 `-SkipDb` 생성 → 결과물 동일(.env 비밀값만 다름), 토큰 잔존 0, `.env` 키 = `.env.example`, pytest 163 통과, ruff check 통과(2026-11-23)
+    - 거부 경로 확인: 잘못된 이름, 템플릿 안 대상, 비어 있지 않은 대상(비대화형)
+  - [x] `skeleton/scripts/bootstrap.*` — Python 만 확인·설치(Node·pnpm 제거)
+    - 형제 `bootstrap.sh` 버그 수정: Git Bash + pyenv-win 의 `pyenv install --list` 가 CRLF·들여쓰기 없이 나와 3.13.x 를 못 찾았다(`tr -d '\r'`, 앞 공백 선택). 형제 저장소에는 미반영
   - [ ] skeleton 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`PLAN.md`·`docs/README.md`·`.claude/skills/`
 - [x] 2. 공통 계층 복사 + 서비스 단위 테스트 통과 — 원본과 파일 단위 동일 확인(2026-11-23)
 - [x] 3. 웹 계층 — `app/main.py`(create_app)·`app/dependencies.py`·`app/web/`(auth·public·api·files·errors·htmx·admin)
@@ -49,4 +52,7 @@
 - [ ] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 공통 마이그레이션(원본 저장소) 쪽 문제인지 PostgreSQL 에서 확인
 - [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증. HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)은 확인
 - [ ] 공지 본문 편집기 — 지금은 HTML textarea + 이미지 업로드 후 코드 붙여 넣기. 리치 텍스트 편집기 도입 여부 결정
+- [ ] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic)와 대화형 입력 — PostgreSQL 미기동으로 미검증
+- [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인. `bootstrap --with-postgres` 미검증
+- [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
 - [ ] `requirements.txt` 핀 검토 — 직접 의존성만 고정(전이 의존성 jinja2·markupsafe·itsdangerous·click·blinker 는 미고정)
