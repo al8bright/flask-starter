@@ -6,6 +6,15 @@
 #   ./scaffold.sh --name project_test --target ~/work/project_test
 #   ./scaffold.sh --name Demo --target ./Demo --skip-db --skip-install
 #
+# 옵션:
+#   --name <이름>          프로젝트 이름 (없으면 묻는다)
+#   --target <경로>        생성 위치 (기본: 템플릿 폴더의 부모/<이름>)
+#   --skip-db              psql DB 생성 + alembic 마이그레이션 생략
+#   --skip-install         venv/pip 설치 + alembic + Tailwind CSS 빌드 생략
+#   --db-host/--db-port/--db-user/--db-password/--db-name
+#                          DB 접속 정보 기본값 (대화형이면 Enter 로 수락, 비밀번호는 지정하면 묻지 않는다)
+#   -h, --help             이 도움말
+#
 # 사전 요구: python3. Node·pnpm 은 필요 없다(CSS 는 Tailwind standalone CLI 로 빌드한다).
 #            psql 은 PATH 에 없어도 표준 설치 경로를 탐색한다. 찾지 못하면 DB 단계만 건너뛴다.
 # 이름 규칙: ASCII 영문자·숫자로 시작하고 영문자·숫자·공백·'_'·'-' 만 쓴다(최대 64자).
@@ -67,6 +76,14 @@ step() { printf "\n${c_cyan}=== %s ===${c_reset}\n" "$1"; }
 ok()   { printf "  ${c_green}[OK]${c_reset} %s\n" "$1"; }
 warn() { printf "  ${c_yellow}[!]${c_reset}  %s\n" "$1"; }
 die()  { printf "  ${c_red}[X]${c_reset}  %s\n" "$1" >&2; exit 1; }
+# 포트는 숫자만 받는다 (scaffold.ps1 의 [int] 매개변수·TryParse 와 같게) — 대화형 입력이 숫자가 아니면 기존 값을 유지한다.
+_set_port() {
+  case "$1" in
+    ''|*[!0-9]*) warn "포트가 숫자가 아닙니다: '$1' — 기존 값 $DB_PORT 유지" ;;
+    *) DB_PORT="$1" ;;
+  esac
+}
+case "$DB_PORT" in ''|*[!0-9]*) die "--db-port 는 숫자여야 합니다: $DB_PORT" ;; esac
 
 # 미완료 단계 모음 — 마지막에 요약하고, 하나라도 있으면 종료 코드 2 로 끝낸다 (scaffold.ps1 과 동일).
 _INCOMPLETE=""
@@ -220,7 +237,7 @@ _activate_version_managers() {
     export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
     export PATH="$PYENV_ROOT/bin:$PATH"
     # init 출력이 셸 코드가 아닐 수 있다(예: Git Bash 의 pyenv-win 은 "no such command" 를 stdout 으로 낸다).
-    # 그대로 eval 하면 127 로 죽으므로(set -e) 실패를 무시한다 — 버전 선택은 PYENV_VERSION 으로 따로 한다.
+    # 그대로 eval 하면 오류 출력이 섞이므로 실패를 무시한다 — 버전 선택은 PYENV_VERSION 으로 따로 한다.
     eval "$(pyenv init --path 2>/dev/null || true)" 2>/dev/null || true
     eval "$(pyenv init - 2>/dev/null || true)" 2>/dev/null || true
     # ⛔ pyenv init 은 shim 을 PATH 에 올릴 뿐 버전을 고르지 않는다.
@@ -248,8 +265,9 @@ _activate_version_managers
 # ⛔ pyenv 가 없다는 이유만으로 bootstrap 을 강제하지 않는다 — 이미 조건을 만족한 환경까지
 # 골격 생성 전에 막아버린다.
 _need_bootstrap=0
+_bootstrap_reason=""
 _PY="$(_ext_ver "$(python3 --version 2>/dev/null || true)")"
-_meets "${MIN_PYTHON:-3.13}" "$_PY" || _need_bootstrap=1
+_meets "${MIN_PYTHON:-3.13}" "$_PY" || { _need_bootstrap=1; _bootstrap_reason="Python 하한(${MIN_PYTHON:-3.13}) 미달"; }
 # skeleton/.python-version 핀 처리
 #  - pyenv 가 있으면: 핀된 정확한 버전이 실제 설치돼 있어야 한다(없으면 bootstrap 이 설치 시도).
 #  - pyenv 가 없으면: 핀을 강제할 수단이 없다. 하한을 충족하는 Python 을 쓰되 CI 와의 차이만 경고한다.
@@ -257,6 +275,7 @@ if [ -n "$_PY_PIN" ]; then
   if command -v pyenv >/dev/null 2>&1; then
     if [ "$_need_bootstrap" = "0" ] && ! pyenv versions --bare 2>/dev/null | tr -d '\r' | grep -qx "$_PY_PIN"; then
       _need_bootstrap=1
+      _bootstrap_reason="pyenv 에 Python 핀($_PY_PIN) 미설치"
     fi
   elif [ "$_need_bootstrap" = "0" ]; then
     case "$_PY" in
@@ -271,7 +290,7 @@ fi
 
 if [ "$_need_bootstrap" = "1" ]; then
   [ -f "$_BOOTSTRAP" ] || die "bootstrap.sh 를 찾을 수 없습니다 ($_BOOTSTRAP). 수동으로 먼저 실행하세요."
-  warn "Python 버전이 기준 미달 — bootstrap.sh 를 먼저 실행합니다 …"
+  warn "$_bootstrap_reason — bootstrap.sh 를 먼저 실행합니다 …"
   # ⛔ --project-root 없이 실행하면 bootstrap 이 핀 파일이 없을 때 템플릿의 skeleton/ 에 핀을 기록해
   #    리포를 오염시킬 수 있다. 템플릿 오염 방지용 임시 폴더를 넘기고, 끝나면 지운다.
   #    골격의 핀을 미리 심어 bootstrap 이 "기존 핀 존중" 경로를 타게 한다 — 빈 폴더면 bootstrap 이
@@ -279,11 +298,13 @@ if [ "$_need_bootstrap" = "1" ]; then
   #    bootstrap 은 핀이 이미 있으면 기록하지 않으므로, 생성 프로젝트의 핀은 언제나 골격 값이다.
   _PIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/scaffold-pin.XXXXXX")" || die "임시 폴더를 만들 수 없습니다."
   [ -f "$_PY_PIN_FILE" ] && cp "$_PY_PIN_FILE" "$_PIN_DIR/.python-version"
-  bash "$_BOOTSTRAP" --project-root "$_PIN_DIR"
+  bash "$_BOOTSTRAP" --project-root "$_PIN_DIR" --skip-next-steps
   _rc=$?
   rm -rf "$_PIN_DIR"
+  # 실패 문구는 scaffold.ps1 과 같은 두 갈래다.
   if [ "$_rc" -ne 0 ]; then
-    die "bootstrap.sh 실패 (종료 코드 $_rc) — 스캐폴드를 중단합니다. 위 로그의 오류를 해결한 뒤 다시 실행하세요."
+    warn "bootstrap.sh 종료 코드 $_rc"
+    die "bootstrap 실패 — 스캐폴드를 중단합니다. 위 로그의 오류를 해결한 뒤 다시 실행하세요."
   fi
   _activate_version_managers                                    # bootstrap 후 현재 프로세스에 재적용
 
@@ -291,15 +312,15 @@ if [ "$_need_bootstrap" = "1" ]; then
   # 관리자 없이 기존 설치본을 재사용하는 경로가 정상 경로이기 때문이다.
   _bootstrap_ok=1
   _PY="$(_ext_ver "$(python3 --version 2>/dev/null || true)")"
-  _meets "${MIN_PYTHON:-3.13}" "$_PY" || { warn "bootstrap 후에도 Python 이 ${MIN_PYTHON:-3.13} 이상이 아닙니다."; _bootstrap_ok=0; }
+  _meets "${MIN_PYTHON:-3.13}" "$_PY" || _bootstrap_ok=0
   # 핀이 pyenv 에 설치됐는지는 경고 대상이지 중단 사유가 아니다. bootstrap 이 핀을 설치하지
   # 못해도 하한을 충족하는 Python 으로 폴백했을 수 있고, 위 런타임 검증을 이미 통과했다.
-  if [ -n "$_PY_PIN" ] && command -v pyenv >/dev/null 2>&1; then
+  if [ "$_bootstrap_ok" = "1" ] && [ -n "$_PY_PIN" ] && command -v pyenv >/dev/null 2>&1; then
     if ! pyenv versions --bare 2>/dev/null | tr -d '\r' | grep -qx "$_PY_PIN"; then
       warn "Python 핀 $_PY_PIN 이 pyenv 에 없습니다 — 하한을 충족하는 설치본으로 진행합니다. CI 는 핀을 사용합니다."
     fi
   fi
-  [ "$_bootstrap_ok" = "1" ] || die "bootstrap 후 필수 도구 검증 실패 — 스캐폴드를 중단합니다."
+  [ "$_bootstrap_ok" = "1" ] || die "bootstrap 후에도 Python ${MIN_PYTHON:-3.13} 이상을 찾지 못했습니다 — 스캐폴드를 중단합니다."
 fi
 
 # ---------- 3. DB 접속 정보 ----------
@@ -307,7 +328,7 @@ if [ $SKIP_DB -eq 0 ]; then
   step "PostgreSQL 접속 정보 (psql 로 DB 생성)"
   if [ -t 0 ]; then
     read -r -p "DB host [$DB_HOST]: " i; [ -n "$i" ] && DB_HOST="$i"
-    read -r -p "DB port [$DB_PORT]: " i; [ -n "$i" ] && DB_PORT="$i"
+    read -r -p "DB port [$DB_PORT]: " i; [ -n "$i" ] && _set_port "$i"
     read -r -p "DB user [$DB_USER]: " i; [ -n "$i" ] && DB_USER="$i"
     [ -z "$DB_PASSWORD" ] && { read -r -s -p "DB password: " DB_PASSWORD; echo; }
     read -r -p "DB name [$DB_NAME]: " i; [ -n "$i" ] && DB_NAME="$i"
@@ -320,15 +341,21 @@ fi
 enable_psql(){
   command -v psql >/dev/null 2>&1 && return 0
   _best=""; _best_ver=-1
+  # Git Bash(Windows): %LOCALAPPDATA% 를 POSIX 경로로 바꾼다(없으면 빈 값 → 아래 경로는 존재하지 않아 건너뛴다).
+  _lad=""
+  if [ -n "${LOCALAPPDATA:-}" ] && command -v cygpath >/dev/null 2>&1; then _lad="$(cygpath -u "$LOCALAPPDATA")"; fi
   for _d in /Applications/Postgres.app/Contents/Versions/*/bin \
             /usr/lib/postgresql/*/bin \
             /usr/pgsql-*/bin \
             /opt/homebrew/opt/postgresql@*/bin \
             /usr/local/opt/postgresql@*/bin \
-            "/c/Program Files/PostgreSQL/"*/bin; do   # 마지막은 Git Bash(Windows) 설치 경로
-    [ -x "$_d/psql" ] || continue
-    # 경로에서 첫 번째 숫자 덩어리를 메이저 버전으로 본다 (없으면 0)
-    _v=$(printf '%s' "$_d" | grep -oE '[0-9]+' | head -n1)
+            "/c/Program Files/PostgreSQL/"*/bin \
+            "/c/Program Files (x86)/PostgreSQL/"*/bin \
+            "$_lad/Programs/PostgreSQL/"*/bin; do   # 마지막 세 줄은 Git Bash(Windows) 설치 경로
+    [ -x "$_d/psql" ] || [ -x "$_d/psql.exe" ] || continue
+    # bin 바로 위 폴더 이름의 첫 숫자 덩어리를 메이저 버전으로 본다 (없으면 0, scaffold.ps1 과 같다).
+    # ⛔ 경로 전체에서 찾지 않는다 — "Program Files (x86)" 의 86 이나 사용자 이름의 숫자를 버전으로 오인한다.
+    _v=$(printf '%s' "${_d%/bin}" | sed 's|.*/||' | grep -oE '[0-9]+' | head -n1)
     [ -n "$_v" ] || _v=0
     if [ "$_v" -gt "$_best_ver" ]; then _best_ver="$_v"; _best="$_d"; fi
   done
@@ -359,7 +386,7 @@ if [ $SKIP_DB -eq 0 ] && command -v psql >/dev/null 2>&1; then
       _db_retried=1
       printf "  ${c_yellow}[!]${c_reset}  접속정보를 다시 입력하세요 (1회 재시도, Enter 는 기존값 유지)\n"
       read -r -p "DB host [$DB_HOST]: " i; [ -n "$i" ] && DB_HOST="$i"
-      read -r -p "DB port [$DB_PORT]: " i; [ -n "$i" ] && DB_PORT="$i"
+      read -r -p "DB port [$DB_PORT]: " i; [ -n "$i" ] && _set_port "$i"
       read -r -p "DB user [$DB_USER]: " i; [ -n "$i" ] && DB_USER="$i"
       read -r -s -p "DB password [기존값 유지]: " i; echo; [ -n "$i" ] && DB_PASSWORD="$i"
       read -r -p "DB name [$DB_NAME]: " i; [ -n "$i" ] && DB_NAME="$i"
@@ -552,13 +579,19 @@ if [ $SKIP_INSTALL -eq 0 ]; then
 else warn "skip-install: 의존성 설치 건너뜀"; fi
 
 # ---------- 8. DB + 테이블(Alembic) ----------
-# DB 접속 불가 시 안내(한 블록만) — CREATE DATABASE·alembic 을 모두 건너뛰고 수동 실행법만 보여준다.
+# DB 수동 실행 안내(한 블록만) — CREATE DATABASE·alembic 을 모두 건너뛸 때 보여준다(scaffold.ps1 과 같은 형식).
+# 명령 인자 대신 "접속 후 실행할 SQL" 로 보여준다 — 셸마다 다른 따옴표 규칙 때문에 이름에 대문자·'-' 가 있으면
+# -c 인자 한 줄로는 두 셸 모두에서 맞게 쓸 수 없다. 이름은 항상 큰따옴표 식별자로 인용한다.
+_db_manual_guide() {
+  warn "$1 — 다음을 수동 실행:"
+  printf "        1) DB 생성·시각대: psql -h %s -p %s -U %s -d postgres 로 접속해 실행\n" "$DB_HOST" "$DB_PORT" "$DB_USER"
+  printf "             CREATE DATABASE \"%s\";\n" "$DB_NAME"
+  printf "             ALTER DATABASE \"%s\" SET timezone TO 'Asia/Seoul';\n" "$DB_NAME"
+  printf "        2) 테이블 생성:    %s -m alembic upgrade head\n" "$VPY_HINT"
+  _incomplete "$2"
+}
 _db_unreachable_guide() {
-  warn "DB 접속 불가 — 접속정보(host/port/user/password) 확인 후 다음을 수동 실행:"
-  printf "        1) DB 생성:     psql -h %s -p %s -U %s -d postgres -c 'CREATE DATABASE \"%s\"'\n" "$DB_HOST" "$DB_PORT" "$DB_USER" "$DB_NAME"
-  printf "        2) 시각대:      psql -h %s -p %s -U %s -d postgres -c \"ALTER DATABASE \\\\\"%s\\\\\" SET timezone TO 'Asia/Seoul'\"\n" "$DB_HOST" "$DB_PORT" "$DB_USER" "$DB_NAME"
-  printf "        3) 테이블 생성:  %s -m alembic upgrade head\n" "$VPY_HINT"
-  _incomplete "DB 생성·마이그레이션 (접속 불가)"
+  _db_manual_guide "DB 접속 불가(접속정보 host/port/user/password 확인)" "DB 생성·마이그레이션 (접속 불가)"
 }
 # SQL 을 표준입력으로 psql 에 넘긴다 (PGPASSWORD 는 호출 동안만 설정).
 # DB 이름은 -v dbname=… 변수로 넘기고 SQL 안에서 :"dbname"(식별자)·:'dbname'(문자열)로 인용한다
@@ -598,9 +631,8 @@ if [ $SKIP_DB -eq 0 ]; then
   step "PostgreSQL: 데이터베이스 생성"
   enable_psql
   if ! command -v psql >/dev/null 2>&1; then
-    warn "psql 을 찾을 수 없습니다 (PATH·표준 설치 경로 모두) — DB 생성 건너뜀."
-    warn "PostgreSQL 이 설치돼 있다면 bin 디렉터리를 PATH 에 추가하세요. 수동 생성 → ALTER DATABASE 로 timezone 'Asia/Seoul' 설정 → alembic upgrade head"
-    _incomplete "DB 생성·마이그레이션 (psql 없음)"
+    warn "PostgreSQL 이 설치돼 있다면 bin 디렉터리를 PATH 에 추가하세요."
+    _db_manual_guide "psql 없음(PATH·표준 설치 경로 모두)" "DB 생성·마이그레이션 (psql 없음)"
   elif [ "$DB_UNREACHABLE" = "1" ]; then
     # 사전 검사에서 이미 접속 불가로 판정 — 조회/생성/alembic 모두 생략하고 안내만.
     _db_unreachable_guide
@@ -656,6 +688,16 @@ else warn "skip-install: CSS 빌드 건너뜀"; fi
 
 # ---------- 10. 안내 ----------
 step "실행 방법"
+# --skip-install 은 사용자가 고른 생략이라 미완료(종료 코드 2)로 세지 않는다. 대신 아래 [앱] 명령이 쓰는
+# venv 가 없으므로 생략한 설치 단계를 먼저 안내한다(scaffold.ps1 과 같다).
+if [ $SKIP_INSTALL -ne 0 ]; then
+  printf '[설치]    --skip-install 로 생략한 단계를 먼저 실행 (Python %s 이상):\n' "${MIN_PYTHON:-3.13}"
+  printf '  cd "%s"\n' "$TARGET"
+  printf '  python3 -m venv .venv\n'
+  printf '  %s -m pip install -r requirements.txt\n' "$VPY_HINT"
+  [ $SKIP_DB -eq 0 ] && printf '  %s -m alembic upgrade head\n' "$VPY_HINT"
+  printf '  %s\n\n' "$CSS_HINT"
+fi
 cat <<EOF
 [앱]      새 터미널에서:
   cd "$TARGET"

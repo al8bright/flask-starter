@@ -2,11 +2,14 @@
 # 신규 개발 환경 부트스트랩 (macOS / Linux) — 최소 버전 검사 후 부족할 때만 설치.
 #
 # 정책:
-#   - Python : pyenv 로 버전 격리 관리. pyenv 자체가 없으면 brew 로 설치.
-#              MIN_PYTHON 계열 최신 패치를 pyenv install 후 .python-version 고정.
+#   - Python : MIN_PYTHON 이상이 있으면 그대로 재사용한다(pyenv 불필요).
+#              pyenv 가 있으면 .python-version 핀(없으면 MIN_PYTHON 계열 최신 패치)을 설치·고정한다.
+#              하한 미달인데 pyenv 도 없을 때만 brew 로 pyenv 를 설치한다(brew 가 없으면 안내 후 중단).
 #   - PostgreSQL : 있으면 유지, --with-postgres 옵션 시에만 설치.
+#                  brew 는 postgresql@16, apt-get·dnf 는 배포판 기본 버전이다(16 미만이면 PGDG 저장소 권장).
 #   Node·pnpm 은 쓰지 않는다 — CSS 는 Tailwind standalone CLI(scripts/tailwind.*)로 빌드한다.
 #   설치·활성화 실패는 경고로 넘기지 않고 원인을 보인 뒤 종료 코드 1 로 끝낸다(bootstrap.ps1 과 동일).
+#   인자 오류(알 수 없는 옵션·값 누락)는 종료 코드 2 다.
 #
 # 사용:
 #   ./scripts/bootstrap.sh                  # 런타임만
@@ -14,17 +17,20 @@
 set -euo pipefail
 
 WITH_PG=0
+SKIP_NEXT_STEPS=0
 # 버전 고정 파일(.python-version)을 쓸 위치. 미지정 시 이 스크립트의 상위 폴더.
 # scaffold.sh 는 템플릿 리포(skeleton/) 오염을 막기 위해 임시 폴더를 넘긴다.
 PROJECT_ROOT_ARG=""
 usage(){
   cat <<'EOF'
-Usage: ./scripts/bootstrap.sh [--with-postgres] [--project-root <경로>]
+Usage: ./scripts/bootstrap.sh [--with-postgres] [--project-root <경로>] [--skip-next-steps]
 
 Options:
   --with-postgres        PostgreSQL도 함께 설치합니다.
   --project-root <경로>  .python-version 을 기록할 위치.
                          (기본: 이 스크립트의 상위 폴더)
+  --skip-next-steps      마지막 「다음 단계」의 프로젝트 설치 안내(의존성·CSS·DB)를 생략합니다.
+                         scaffold.sh 가 그 단계를 직접 수행하므로 넘깁니다.
   -h, --help             이 도움말을 표시합니다.
 EOF
 }
@@ -32,6 +38,7 @@ EOF
 while [ $# -gt 0 ]; do
   case "$1" in
     --with-postgres) WITH_PG=1 ;;
+    --skip-next-steps) SKIP_NEXT_STEPS=1 ;;
     --project-root)
       if [ $# -lt 2 ]; then
         printf '옵션 --project-root 에 경로 인자가 필요합니다\n' >&2
@@ -229,8 +236,10 @@ if [ "$WITH_PG" = "1" ]; then
     if command -v brew >/dev/null 2>&1; then
       { brew install postgresql@16 && brew services start postgresql@16; } || _pg_ok=0
     elif command -v apt-get >/dev/null 2>&1; then
+      info "apt-get 은 배포판 기본 PostgreSQL 을 설치합니다 — 16 미만이면 PGDG 저장소(https://www.postgresql.org/download/linux/)를 권장합니다."
       { sudo apt-get update && sudo apt-get install -y postgresql; } || _pg_ok=0
     elif command -v dnf >/dev/null 2>&1; then
+      info "dnf 는 배포판 기본 PostgreSQL 을 설치합니다 — 16 미만이면 PGDG 저장소(https://www.postgresql.org/download/linux/)를 권장합니다."
       { sudo dnf install -y postgresql-server && sudo postgresql-setup --initdb && sudo systemctl enable --now postgresql; } || _pg_ok=0
     else
       warn "지원되는 패키지 매니저(brew·apt-get·dnf)를 못 찾음 — PostgreSQL 을 수동 설치한 뒤 다시 실행하세요."
@@ -265,8 +274,13 @@ cat <<'EOF'
      export PYENV_ROOT="$HOME/.pyenv"
      export PATH="$PYENV_ROOT/bin:$PATH"
      eval "$(pyenv init -)"
+EOF
+# scaffold.sh 가 부를 때는 아래 단계를 scaffold 가 곧바로 수행하므로 생략한다(bootstrap.ps1 과 같다).
+if [ "$SKIP_NEXT_STEPS" = "0" ]; then
+  cat <<'EOF'
 2) 의존성:        python3 -m venv .venv && ./.venv/bin/python -m pip install -r requirements.txt
 3) CSS 빌드:      ./scripts/tailwind.sh
 4) DB 마이그레이션: .env 의 DATABASE_URL 확인 후  ./.venv/bin/python -m alembic upgrade head
 자세한 내용은 README.md 참조.
 EOF
+fi

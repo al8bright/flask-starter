@@ -5,8 +5,8 @@
 
 .DESCRIPTION
   skeleton/ 골격을 복사하고 토큰을 치환한 뒤,
-  .env 생성, psql 로 DB 생성, Alembic 으로 테이블 생성(upgrade head),
-  의존성 설치, Tailwind CSS 빌드까지 한 번에 수행한다.
+  .env 생성, 의존성 설치(venv·pip), psql 로 DB 생성, Alembic 으로 테이블 생성(upgrade head),
+  Tailwind CSS 빌드까지 한 번에 수행한다.
   마지막에 flask run 실행 방법을 출력한다. Node·pnpm 은 필요 없다.
 
   이름 규칙: ASCII 영문자·숫자로 시작하고 영문자·숫자·공백·'_'·'-' 만 쓴다(최대 64자).
@@ -16,6 +16,22 @@
   종료 코드: 0 = 모든 단계 완료
              1 = 중단(입력 오류, 대상 폴더 거부, 런타임 미충족, 복사·치환 실패)
              2 = 골격은 생성됐지만 일부 단계(pip·DB·alembic·CSS 빌드 등)가 미완료 — 마지막 요약 참고
+
+.PARAMETER Name
+  프로젝트 이름. 없으면 묻는다.
+
+.PARAMETER Target
+  생성 위치. 기본은 템플릿 폴더의 부모 폴더 아래 <이름>.
+
+.PARAMETER SkipDb
+  psql DB 생성 + alembic 마이그레이션을 생략한다.
+
+.PARAMETER SkipInstall
+  venv/pip 설치 + alembic + Tailwind CSS 빌드를 생략한다.
+
+.PARAMETER DbHost
+  DB 접속 정보 기본값(-DbHost/-DbPort/-DbUser/-DbPassword/-DbName 공통).
+  대화형이면 Enter 로 수락하고, 비밀번호는 지정하면 묻지 않는다.
 
 .EXAMPLE
   .\scaffold.ps1 -Name project_test -Target P:\flask\project_test
@@ -138,7 +154,7 @@ function Enable-Psql {
   $best = $cand | Sort-Object Ver -Descending | Select-Object -First 1
   if ($best) {
     $env:Path = "$($best.Bin);$env:Path"
-    Write-Host "  [i]  psql 을 PATH 에서 찾지 못해 설치 경로를 사용합니다: $($best.Bin)" -ForegroundColor Cyan
+    Write-Ok "psql 을 PATH 에서 찾지 못해 설치 경로를 사용합니다: $($best.Bin)"
   }
 }
 
@@ -251,10 +267,11 @@ function _Meets($have, [string]$minStr) {
 # ⛔ pyenv 가 없다는 이유만으로 bootstrap 을 강제하지 않는다 — Windows 에서 pyenv-win 은
 # 자동 설치 대상이 아니라, 이미 조건을 만족한 환경까지 골격 생성 전에 막아버린다.
 $_needBootstrap = $false
+$_bootstrapReason = ""
 $_pyVer = _Get-SemVer $(try { python --version 2>&1 | Out-String } catch { "" })
 # PS 5.1 호환: '??'(null 병합, PS7+) 대신 if 식 사용. 폴백은 versions.env 와 동일한 3.13.
 $_minPython = if ($_min['MIN_PYTHON']) { $_min['MIN_PYTHON'] } else { '3.13' }
-if (-not (_Meets $_pyVer $_minPython)) { $_needBootstrap = $true }
+if (-not (_Meets $_pyVer $_minPython)) { $_needBootstrap = $true; $_bootstrapReason = "Python 하한($_minPython) 미달" }
 # skeleton\.python-version 핀 처리
 #  - pyenv 가 있으면: 핀된 정확한 버전이 실제 설치돼 있어야 한다(없으면 bootstrap 이 설치).
 #  - pyenv 가 없으면: 핀을 강제할 수단이 없다. 하한을 충족하는 Python 을 그대로 쓰되,
@@ -264,7 +281,7 @@ if ($_pyPin) {
     if (-not $_needBootstrap) {
       $_pyenvInstalled = $(try { pyenv versions --bare 2>&1 | Out-String } catch { "" })
       $_installedList = "$_pyenvInstalled" -split '\r?\n' | ForEach-Object { $_.Trim() }
-      if ($_installedList -notcontains $_pyPin) { $_needBootstrap = $true }
+      if ($_installedList -notcontains $_pyPin) { $_needBootstrap = $true; $_bootstrapReason = "pyenv 에 Python 핀($_pyPin) 미설치" }
     }
   } elseif (-not $_needBootstrap) {
     $_pyActual = ($(try { python --version 2>&1 | Out-String } catch { "" }) -replace '[^0-9.]', '').Trim()
@@ -279,7 +296,7 @@ if ($_needBootstrap) {
   if (-not (Test-Path -LiteralPath $_Bootstrap)) {
     Stop-Scaffold "bootstrap.ps1 을 찾을 수 없습니다 ($_Bootstrap). 수동으로 먼저 실행하세요."
   }
-  Write-Warn2 "Python 버전이 기준 미달 — bootstrap.ps1 을 먼저 실행합니다 …"
+  Write-Warn2 "$_bootstrapReason — bootstrap.ps1 을 먼저 실행합니다 …"
   # ⛔ -ProjectRoot 없이 실행하면 bootstrap 이 핀 파일이 없을 때 템플릿의 skeleton\ 에 핀을 기록해
   #    리포를 오염시킬 수 있다. 템플릿 오염 방지용 임시 폴더를 넘기고, 끝나면 지운다.
   #    골격의 핀을 미리 심어 bootstrap 이 "기존 핀 존중" 경로를 타게 한다 — 빈 폴더면 bootstrap 이
@@ -294,7 +311,8 @@ if ($_needBootstrap) {
   # 검증 기준은 "런타임이 하한을 충족하는가"이지 "pyenv 가 설치됐는가"가 아니다 —
   # 관리자 없이 기존 설치본을 재사용하는 경로가 정상 경로이기 때문이다.
   $_bootstrapOk = $true
-  try { & $_Bootstrap -ProjectRoot $_PinDir } catch {
+  $_runtimeOk = $true
+  try { & $_Bootstrap -ProjectRoot $_PinDir -SkipNextSteps } catch {
     Write-Warn2 "bootstrap.ps1 실행 중 오류: $($_.Exception.Message)"
     $_bootstrapOk = $false
   } finally {
@@ -304,22 +322,23 @@ if ($_needBootstrap) {
   #    정상 경로까지 막아버린다(scaffold.sh 와 동일). 판정은 아래 런타임 재검증이 한다.
   Enable-VersionManagers
   $_pyAfter = _Get-SemVer $(try { python --version 2>&1 | Out-String } catch { "" })
-  if ($_bootstrapOk -and -not (_Meets $_pyAfter $_minPython)) {
-    Write-Warn2 "bootstrap 후에도 Python 이 $_minPython 이상이 아닙니다."
-    $_bootstrapOk = $false
-  }
+  if ($_bootstrapOk -and -not (_Meets $_pyAfter $_minPython)) { $_runtimeOk = $false }
   # 핀이 pyenv 에 설치됐는지는 경고 대상이지 중단 사유가 아니다.
   # bootstrap 이 핀을 설치하지 못해도 하한을 충족하는 Python 으로 폴백했을 수 있고, 그 경우
   # 위의 런타임 검증을 이미 통과했다. 여기서 중단하면 폴백 경로가 의미를 잃는다.
-  if ($_bootstrapOk -and $_pyPin -and (Get-Command pyenv -ErrorAction SilentlyContinue)) {
+  if ($_bootstrapOk -and $_runtimeOk -and $_pyPin -and (Get-Command pyenv -ErrorAction SilentlyContinue)) {
     $_installed2 = $(try { pyenv versions --bare 2>&1 | Out-String } catch { "" })
     $_installedList2 = "$_installed2" -split '\r?\n' | ForEach-Object { $_.Trim() }
     if ($_installedList2 -notcontains $_pyPin) {
       Write-Warn2 "Python 핀 $_pyPin 이 pyenv 에 없습니다 — 하한을 충족하는 설치본으로 진행합니다. CI 는 핀을 사용합니다."
     }
   }
+  # 실패 문구는 scaffold.sh 와 같은 두 갈래다.
   if (-not $_bootstrapOk) {
-    Stop-Scaffold "bootstrap.ps1 실패 — 스캐폴드를 중단합니다. 위 로그의 오류를 해결한 뒤 다시 실행하세요."
+    Stop-Scaffold "bootstrap 실패 — 스캐폴드를 중단합니다. 위 로그의 오류를 해결한 뒤 다시 실행하세요."
+  }
+  if (-not $_runtimeOk) {
+    Stop-Scaffold "bootstrap 후에도 Python $_minPython 이상을 찾지 못했습니다 — 스캐폴드를 중단합니다."
   }
 }
 
@@ -553,13 +572,19 @@ if (-not $SkipInstall) {
 } else { Write-Warn2 "SkipInstall: 의존성 설치 건너뜀" }
 
 # ---------- 8. DB 생성 + 테이블(Alembic) ----------
-# DB 접속 불가 안내(한 블록만) — CREATE DATABASE·alembic 을 모두 건너뛰고 수동 실행법만 보여준다.
+# DB 수동 실행 안내(한 블록만) — CREATE DATABASE·alembic 을 모두 건너뛸 때 보여준다(scaffold.sh 와 같은 형식).
+# 명령 인자 대신 "접속 후 실행할 SQL" 로 보여준다 — 셸마다 다른 따옴표 규칙 때문에 이름에 대문자·'-' 가 있으면
+# -c 인자 한 줄로는 두 셸 모두에서 맞게 쓸 수 없다. 이름은 항상 큰따옴표 식별자로 인용한다.
+function Show-DbManualGuide([string]$Reason, [string]$Incomplete) {
+  Write-Warn2 "$Reason — 다음을 수동 실행:"
+  Write-Host "        1) DB 생성·시각대: psql -h $DbHost -p $DbPort -U $DbUser -d postgres 로 접속해 실행" -ForegroundColor White
+  Write-Host "             CREATE DATABASE `"$DbName`";" -ForegroundColor White
+  Write-Host "             ALTER DATABASE `"$DbName`" SET timezone TO 'Asia/Seoul';" -ForegroundColor White
+  Write-Host "        2) 테이블 생성:    .\.venv\Scripts\python -m alembic upgrade head" -ForegroundColor White
+  Add-Incomplete $Incomplete
+}
 function Show-DbUnreachableGuide {
-  Write-Warn2 "DB 접속 불가 — 접속정보(host/port/user/password) 확인 후 다음을 수동 실행:"
-  Write-Host "        1) DB 생성:     psql -h $DbHost -p $DbPort -U $DbUser -d postgres -c `"CREATE DATABASE $DbName`"" -ForegroundColor White
-  Write-Host "        2) 시각대:      psql -h $DbHost -p $DbPort -U $DbUser -d postgres -c `"ALTER DATABASE $DbName SET timezone TO 'Asia/Seoul'`"" -ForegroundColor White
-  Write-Host "        3) 테이블 생성:  .\.venv\Scripts\python -m alembic upgrade head" -ForegroundColor White
-  Add-Incomplete "DB 생성·마이그레이션 (접속 불가)"
+  Show-DbManualGuide "DB 접속 불가(접속정보 host/port/user/password 확인)" "DB 생성·마이그레이션 (접속 불가)"
 }
 # SQL 을 표준입력으로 psql 에 넘긴다 (PGPASSWORD 는 호출 동안만 설정).
 # DB 이름은 -v dbname=… 변수로 넘기고 SQL 안에서 :"dbname"(식별자)·:'dbname'(문자열)로 인용한다 —
@@ -621,10 +646,8 @@ if (-not $SkipDb) {
   Enable-Psql
   $psql = Get-Command psql -ErrorAction SilentlyContinue
   if (-not $psql) {
-    Write-Warn2 "psql 을 찾을 수 없습니다 (PATH·표준 설치 경로 모두). DB 생성을 건너뜁니다."
     Write-Warn2 "PostgreSQL 이 설치돼 있다면 bin 디렉터리를 PATH 에 추가하세요 (예: C:\Program Files\PostgreSQL\<버전>\bin)."
-    Write-Warn2 "수동: psql -U $DbUser -c `"CREATE DATABASE $DbName`" → ALTER DATABASE 로 timezone 'Asia/Seoul' 설정 → alembic upgrade head"
-    Add-Incomplete "DB 생성·마이그레이션 (psql 없음)"
+    Show-DbManualGuide "psql 없음(PATH·표준 설치 경로 모두)" "DB 생성·마이그레이션 (psql 없음)"
   } elseif ($DbUnreachable) {
     # 사전 검사에서 이미 접속 불가로 판정 — 조회/생성/alembic 모두 생략하고 안내만.
     Show-DbUnreachableGuide
@@ -643,7 +666,7 @@ if (-not $SkipDb) {
       if ((Invoke-PsqlScript "ALTER DATABASE :`"dbname`" SET timezone TO 'Asia/Seoul';").Ok) {
         Write-Ok "DB 기본 시각대: Asia/Seoul"
       } else {
-        Write-Warn2 "DB 시각대 설정 실패 — 수동: ALTER DATABASE $DbName SET timezone TO 'Asia/Seoul'"
+        Write-Warn2 "DB 시각대 설정 실패 — 수동: ALTER DATABASE `"$DbName`" SET timezone TO 'Asia/Seoul'"
         Add-Incomplete "DB 기본 시각대 설정 (ALTER DATABASE … timezone)"
       }
       Invoke-AlembicUpgrade
@@ -684,6 +707,17 @@ if (-not $SkipInstall) {
 
 # ---------- 10. 실행 안내 ----------
 Write-Step "실행 방법"
+# -SkipInstall 은 사용자가 고른 생략이라 미완료(종료 코드 2)로 세지 않는다. 대신 아래 [앱] 명령이 쓰는
+# venv 가 없으므로 생략한 설치 단계를 먼저 안내한다(scaffold.sh 와 같다).
+if ($SkipInstall) {
+  Write-Host "[설치]    -SkipInstall 로 생략한 단계를 먼저 실행 (Python $_minPython 이상):" -ForegroundColor White
+  Write-Host "  cd `"$Target`"" -ForegroundColor White
+  Write-Host "  python -m venv .venv" -ForegroundColor White
+  Write-Host "  .\.venv\Scripts\python -m pip install -r requirements.txt" -ForegroundColor White
+  if (-not $SkipDb) { Write-Host "  .\.venv\Scripts\python -m alembic upgrade head" -ForegroundColor White }
+  Write-Host "  .\scripts\tailwind.ps1" -ForegroundColor White
+  Write-Host ""
+}
 # venv 의 python 을 직접 호출한다 — Activate.ps1 은 실행 정책(Restricted 등)에 막힐 수 있다.
 Write-Host @"
 [앱]      새 PowerShell 터미널에서:

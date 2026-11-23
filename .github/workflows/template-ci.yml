@@ -50,6 +50,19 @@ jobs:
             fi
           done < <(find . -path ./.git -prune -o -name '*.sh' -print)
           exit $failed
+      - name: 실행 권한 (모든 .sh)
+        # 안내 문구가 ./scripts/tailwind.sh 처럼 바로 실행하므로 git 에 100755 로 기록돼 있어야 한다.
+        # scaffold.sh 의 골격 복사(tar)가 권한을 그대로 옮긴다.
+        run: |
+          failed=0
+          while IFS= read -r line; do
+            mode=${line%% *}; f=${line##*$'	'}
+            if [ "$mode" != "100755" ]; then
+              echo "::error file=$f::실행 권한 없음($mode) — git update-index --chmod=+x $f"
+              failed=1
+            fi
+          done < <(git ls-files -s -- '*.sh')
+          exit $failed
       - name: ShellCheck (게이트 — warning 이상이면 실패)
         # SC2088(따옴표 안의 ~ 는 확장되지 않음)은 사용자에게 보여 주는 안내 문구의 의도된 리터럴이라 제외한다.
         run: shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh
@@ -130,9 +143,11 @@ jobs:
           pytest -q -W error::DeprecationWarning
 
       - name: 생성물 CSS 빌드 (Tailwind 내려받기 · SHA-256 검증)
+        # 완료 안내대로 ./scripts/tailwind.sh 로 직접 실행한다 — 실행 권한이 골격 복사에서 빠지면 여기서 실패한다.
         working-directory: ${{ runner.temp }}/CiDemo
         run: |
-          bash scripts/tailwind.sh
+          test -x scripts/bootstrap.sh
+          ./scripts/tailwind.sh
           test -s app/static/css/app.css
 
   # ── 5. Windows 스캐폴드 실제 실행 + scaffold.sh 와 생성물 동일성 ─────────

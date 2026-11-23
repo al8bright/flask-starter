@@ -5,9 +5,11 @@
 
 .DESCRIPTION
   정책:
-    - Python : pyenv-win 으로 버전 격리 관리. pyenv-win 자체는 사전 수동 설치 필요.
-               MIN_PYTHON 계열 최신 패치를 pyenv install 후 .python-version 고정.
-    - PostgreSQL : psql 이 있으면 유지, 없을 때만 (-WithPostgres) winget 으로 설치.
+    - Python : MIN_PYTHON 이상이 있으면 그대로 재사용한다(pyenv-win 불필요).
+               pyenv-win 이 있으면 .python-version 핀(없으면 MIN_PYTHON 계열 최신 패치)을 설치·고정한다.
+               하한 미달인데 pyenv-win 도 없으면 설치 방법을 안내하고 중단한다(자동 설치하지 않는다).
+    - PostgreSQL : psql 이 있으면 유지, 없을 때만 (-WithPostgres) winget 으로 PostgreSQL 16 을 설치.
+  종료 코드: 0 = 완료, 1 = 실패(PowerShell 예외 — 인자 오류 포함).
     Node·pnpm 은 쓰지 않는다 — CSS 는 Tailwind standalone CLI(scripts\tailwind.ps1)로 빌드한다.
 
 .EXAMPLE
@@ -16,13 +18,16 @@
   .\scripts\bootstrap.ps1 -WithPostgres
 .EXAMPLE
   .\scripts\bootstrap.ps1 -ProjectRoot C:\Temp\pin   # 핀 파일을 다른 폴더에 기록
+.PARAMETER SkipNextSteps
+  마지막 「다음 단계」의 프로젝트 설치 안내(의존성·CSS·DB)를 생략한다. scaffold.ps1 이 그 단계를 직접 수행하므로 넘긴다.
 #>
 [CmdletBinding()]
 param(
   [switch]$WithPostgres,
   # 버전 고정 파일(.python-version)을 쓸 위치. 미지정 시 이 스크립트의 상위 폴더.
   # scaffold.ps1 은 템플릿(skeleton\) 오염을 막기 위해 임시 폴더를 넘긴다.
-  [string]$ProjectRoot
+  [string]$ProjectRoot,
+  [switch]$SkipNextSteps
 )
 
 $ErrorActionPreference = "Stop"
@@ -299,8 +304,13 @@ Write-Host @"
      `$env:PYENV_ROOT = `$env:PYENV
      `$env:PYENV_HOME = `$env:PYENV
      `$env:Path = "`$env:PYENV\bin;`$env:PYENV\shims;`$env:Path"
+"@ -ForegroundColor White
+# scaffold.ps1 이 부를 때는 아래 단계를 scaffold 가 곧바로 수행하므로 생략한다(bootstrap.sh 와 같다).
+if (-not $SkipNextSteps) {
+  Write-Host @"
 2) 의존성:        python -m venv .venv; .\.venv\Scripts\python -m pip install -r requirements.txt
 3) CSS 빌드:      .\scripts\tailwind.ps1
 4) DB 마이그레이션: .env 의 DATABASE_URL 확인 후  .\.venv\Scripts\python -m alembic upgrade head
 자세한 내용은 README.md 참조.
 "@ -ForegroundColor White
+}
