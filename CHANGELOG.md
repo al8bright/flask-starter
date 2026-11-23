@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-11-23 — PostgreSQL·스캐폴드 DB 단계 검증
+
+### Fixed (수정)
+
+- `skeleton/ARCHITECTURE.md` §21: `GET /api/v1/health/db` 가 Alembic 리비전을 돌려준다는 서술을 실제 응답(`{"db": "ok", …}`, 접근 불가 시 503)으로 고쳤다. 리비전은 관리자 대시보드에만 표시된다.
+
+### 검증
+
+- Docker `postgres:16`(16.15) 임시 컨테이너에서 Alembic `upgrade head → check → downgrade base → upgrade head` 통과, `alembic check` 차이 없음. SQLite 에서만 보이던 `banners.alt_text` 차이는 Alembic SQLite 비교 코드의 빈 문자열 처리 문제로 확인하였다(DDL 은 `DEFAULT ''` 로 정상).
+- 같은 DB 로 waitress 를 띄워 세션 시각대 `Asia/Seoul`, `/api/v1/health/db` 200, 기본 관리자 로그인, 관리자 화면 5종 200, 대시보드 「DB 정상 · 마이그레이션 0004_notices_banners」, 공지 작성(본문 `<script>` 제거), htmx 검색 partial 응답, CSRF 토큰 없는 POST 400 을 확인하였다.
+- `scaffold.ps1`·`scaffold.sh` 를 DB 단계와 설치 포함으로 실행해 모두 「모든 단계 완료」. 두 DB 의 시각대 `Asia/Seoul`·리비전 `0004_notices_banners`, 두 생성물은 `.env`·산출물을 빼고 같고 `.env` 활성 키는 `.env.example` 과 같다. 접속할 수 없는 포트로 실행하면 두 판 모두 DB 단계를 건너뛰고 수동 안내를 낸 뒤 종료 코드 2 로 끝난다.
+- 미검증: 스캐폴드 대화형 입력(이 환경의 표준 입력이 터미널이 아니다), 브라우저 실동작(Chrome 확장 미연결).
+
+### 알려진 문제
+
+- 공통 계층 `app/config.py` 의 `_apply_timezone` 이 Windows 에서 `TZ=Asia/Seoul` 을 프로세스 환경에 넣어, MSVC CRT 가 이를 UTC 로 해석하고 `datetime.now()` 가 UTC naive 를 낸다(경고 검사도 통과한다). 원본 저장소(`fastapi-react-pg-starter`)에서 고친 뒤 다시 복사한다 — 상세는 `TODO.md`.
+
 ## 2026-11-23 — 전이 의존성 고정
 
 ### Changed (변경)

@@ -647,7 +647,7 @@ def _clear_settings_cache():
 ### 생성 직후 확인
 
 - [ ] `AGENTS.md` 「프로젝트 개요」의 `<…>` 자리표시를 채운다 — 비어 있으면 첫 작업 전에 사용자에게 묻는다
-- [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`flask --app app.main run --debug`) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 DB 상태와 Alembic 리비전을 돌려준다
+- [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`flask --app app.main run --debug`) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 `{"db": "ok", …}` 를 돌려준다(DB 에 접근할 수 없으면 503)
 - [ ] 기본 관리자(`admin`, 비밀번호는 `.env` 의 `DEFAULT_ADMIN_PASSWORD`)로 로그인되고 관리자 대시보드에 「DB 정상」과 리비전이 보인다
 - [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다(공지 검색·사용자 행 저장·배너 순서 이동)
 - [ ] 로컬 검증이 통과한다 — `ruff check .`·`pytest -q` ([`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md))

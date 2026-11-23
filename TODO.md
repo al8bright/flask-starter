@@ -43,11 +43,13 @@
 
 ## 미검증·확인 항목
 
-- [ ] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — 로컬은 Docker 미기동·PostgreSQL 18 접속 정보 없음으로 미검증. SQLite 에서는 `upgrade head` 통과. CI `migrations` 잡이 처음 확인한다
-- [ ] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 공통 마이그레이션(원본 저장소) 쪽 문제인지 PostgreSQL 에서 확인
-- [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증. HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)은 확인
+- [ ] ⚠️ **공통 계층 Windows 시각대 버그**(원본 저장소 `app/config.py` 의 `_apply_timezone`) — Windows 에서도 `os.environ["TZ"] = "Asia/Seoul"` 을 대입하는데, MSVC CRT 가 IANA 이름을 해석하지 못해 UTC 로 보고 이후 `datetime.now()`(= `core.security.now()`)가 **UTC naive** 를 낸다. 경고 검사는 Python 시작 시점의 `time.timezone`(KST)을 읽어 통과하므로 경고도 없다. OS 시각대가 서울인 Windows 에서 `published_at`·세션 만료 등이 9시간 이르게 저장되고, DB 기본값(`func.now()`, KST)과 기준이 섞인다. 재현: `os.environ['TZ']='Asia/Seoul'` 뒤 첫 `datetime.now()` 가 UTC. 형제 저장소에서 고친 뒤 다시 복사한다(이 저장소에서 고치지 않는다)
+- [x] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — Docker `postgres:16`(16.15)에서 통과, `alembic check` 차이 없음. 앱 연결의 세션 시각대 `Asia/Seoul`, 헬스 체크·로그인·관리자 화면·공지 작성(본문 정화)·htmx 검색 partial 확인(2026-11-23)
+- [x] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 원인 확인: 생성된 DDL 은 `DEFAULT ''` 로 정상이고, Alembic 1.20.1 `SQLiteImpl.compare_server_default` 의 따옴표 제거 정규식(`'(.+)'`)이 빈 문자열 `''` 을 벗기지 못해 DB 에서 읽은 값 `''` 과 모델의 빈 문자열이 다르다고 판정한다. 마이그레이션·모델 문제가 아니므로 고치지 않는다. PostgreSQL 에서는 `alembic check` 가 차이 없음으로 통과하였다
+- [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증(2026-11-23 재시도도 미연결). HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)과 템플릿 정적 검사(`style=` 속성·인라인 `<script>`·`on*=` 속성·`hx-on`·`js:`·`<style>` 없음)는 확인
 - [ ] 공지 본문 편집기 — 지금은 HTML textarea + 이미지 업로드 후 코드 붙여 넣기. 리치 텍스트 편집기 도입 여부 결정
-- [ ] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic)와 대화형 입력 — PostgreSQL 미기동으로 미검증
+- [x] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic) — `scaffold.ps1`·`scaffold.sh` 를 설치 포함으로 실행해 두 DB 모두 시각대 `Asia/Seoul`·리비전 `0004_notices_banners`, 생성물 동일(`.env`·산출물 제외), `.env` 활성 키 = `.env.example`. 접속 불가(빈 포트)면 두 판 모두 DB 단계를 건너뛰고 수동 안내 후 종료 코드 2
+  - [ ] 대화형 입력(접속 정보 재입력 1회)은 미검증 — 이 환경은 표준 입력이 터미널이 아니다
 - [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증
 - [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
 - [x] bcrypt 72-byte 가드 테스트 — `tests/test_passwords.py` 로 추가(로그인 422·72 bytes 경계 로그인·`hash_password` 거부·`verify_password` False·최소 길이·미존재 계정 응답 동일·더미 해시 비용). 생성물 pytest 172건 통과
