@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# flask-pg-starter 신규 프로젝트 스캐폴드 (macOS/Linux, Git Bash).
+# flask-starter 신규 프로젝트 스캐폴드 (macOS/Linux, Git Bash).
 # Windows PowerShell 은 scaffold.ps1 을 사용한다. 동작은 동일하다.
 #
 # 사용:

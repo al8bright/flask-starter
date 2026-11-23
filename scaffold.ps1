@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-  flask-pg-starter 신규 프로젝트 스캐폴드 (ARCHITECTURE.md 준수).
+  flask-starter 신규 프로젝트 스캐폴드 (ARCHITECTURE.md 준수).
 
 .DESCRIPTION
   skeleton/ 골격을 복사하고 토큰을 치환한 뒤,
