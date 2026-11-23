@@ -19,6 +19,7 @@ flask-starter/
     ├── README.md           # 사람용 개요·실행 방법
     ├── AGENTS.md           # AI 에이전트 공통 지침 (Codex·Cursor 등 공용)
     ├── CLAUDE.md           # Claude Code 진입점 — @AGENTS.md import
+    ├── ARCHITECTURE.md     # 아키텍처 기준(SSOT) — 형제 템플릿과 같은 절 번호
     ├── PLAN.md             # TDD 작업 계획
     ├── docs/               # 프로젝트 고유 문서 (PRD·유저 플로우·기획서 등)
     ├── .claude/skills/     # AI 작업 스킬 5종
@@ -190,7 +191,7 @@ chmod +x scaffold.sh          # 최초 1회 (실행 권한이 없을 때)
 
 ## 기준이 바뀌면
 
-- **원본만 수정**: `skeleton/ARCHITECTURE.md`(작성 예정) + 필요 시 `skeleton/AGENTS.md`.
+- **원본만 수정**: [`skeleton/ARCHITECTURE.md`](skeleton/ARCHITECTURE.md)(★핵심 MUST 요약 포함) + 필요 시 `skeleton/AGENTS.md`.
 - 이미 생성한 프로젝트에는 템플릿 변경이 자동 동기화되지 않는다. 필요한 변경을 선택해 반영한다.
 
 ## 공통 계층

@@ -43,7 +43,7 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 ⛔ htmx 로 클라이언트 상태(모달 스택·드래그·실시간 동기화)를 흉내 내지 않는다. 그런 화면이 핵심이면 SPA 스타터(형제 FastAPI 템플릿)를 검토하고 `ARCHITECTURE.md` §22 에 결정을 남긴다.
 
-## 4. CSP 제약 (§13 — 보안 헤더 `app/web/security_headers.py`)
+## 4. CSP 제약 (§9·§13 — 보안 헤더 `app/web/security_headers.py`)
 
 - `script-src 'self'`: ⛔ 인라인 `<script>`, `on*=` 속성, `javascript:` URL, 외부 CDN 스크립트. 스크립트가 필요하면 `app/static/js/` 에 파일로 두고 `base.html` 에서 `defer` 로 불러온다. 외부 라이브러리는 벤더링하고 버전을 `scripts/versions.env` 에 기록한다([stack-versions]).
 - `style-src 'self'`: ⛔ `style="..."` 속성·`<style>` 블록. Tailwind 클래스를 쓴다.

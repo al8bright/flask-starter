@@ -27,7 +27,7 @@
     - 형제 `bootstrap.sh` 버그 수정: Git Bash + pyenv-win 의 `pyenv install --list` 가 CRLF·들여쓰기 없이 나와 3.13.x 를 못 찾았다(`tr -d '\r'`, 앞 공백 선택). 형제 저장소에는 미반영
   - [x] skeleton 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`PLAN.md`·`docs/README.md`·`.claude/skills/`(5종)
   - [x] 루트 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`CHANGELOG.md`·`docs/README.md`·`.gitignore`
-    - 문서의 `ARCHITECTURE.md §N` 참조는 6단계에서 파일이 생기면 링크·절 제목을 맞춘다
+    - [x] 문서의 `ARCHITECTURE.md §N` 참조를 6단계 결과의 절 주제와 맞추었다
     - [x] CI 를 `pr-workflow` 스킬·README(루트·skeleton)·AGENTS 「저장소 구조」에 반영(5단계)
 - [x] 2. 공통 계층 복사 + 서비스 단위 테스트 통과 — 원본과 파일 단위 동일 확인(2026-11-23)
 - [x] 3. 웹 계층 — `app/main.py`(create_app)·`app/dependencies.py`·`app/web/`(auth·public·api·files·errors·htmx·admin)
@@ -37,7 +37,9 @@
   - [x] `skeleton/.github/workflows/ci.yml`(생성 프로젝트 CI), 루트 `template-ci.yml`, 두 `check-ps1-syntax.ps1`, PR 템플릿
   - [x] `tools/check_projects.py` 평면 구조 대응 + `tools/check_common_layer.py`(원본이 비공개라 CI 대신 로컬 실행) — 단위 테스트 28건 통과
   - [ ] 첫 push 후 GitHub Actions 결과 확인 — 특히 `migrations-postgres`(PostgreSQL 첫 검증)·`scaffold-posix` macOS·`scaffold-windows`
-- [ ] 6. `skeleton/ARCHITECTURE.md` — 형제 문서 기준으로 §4·§6·§9·§13~15 재작성(절 번호는 유지 — 공통 코드 주석이 § 번호를 참조한다)
+- [x] 6. `skeleton/ARCHITECTURE.md` — 형제 문서를 기준으로 §0~§22 절 번호를 유지하고 Flask 판으로 다시 작성하였다
+  - §13(화면 구조 — Jinja·htmx)·§14(화면 인증 흐름 — 쿠키·CSRF·권한)는 형제 문서와 절 주제가 다르다
+  - [ ] 서술이 코드와 어긋나지 않는지 화면·htmx 를 바꿀 때마다 확인한다(브라우저 미검증 항목은 아래 목록)
 
 ## 미검증·확인 항목
 

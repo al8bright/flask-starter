@@ -16,7 +16,7 @@
 |---|---|
 | `scaffold.ps1` · `scaffold.sh` | 새 프로젝트 생성 스크립트(Windows · macOS/Linux/Git Bash) — **두 판의 동작을 항상 같게** 유지한다 |
 | `skeleton/` | 새 프로젝트가 받는 골격 전체(Flask + Jinja + htmx + PostgreSQL, Tailwind standalone). 스캐폴드는 이 폴더만 복사한다 |
-| `skeleton/ARCHITECTURE.md` | 생성 프로젝트의 아키텍처 기준(SSOT) — 작성 예정(`TODO.md` 6단계). 공통 코드 주석이 형제 템플릿의 § 번호를 참조하므로 절 번호를 형제와 같게 둔다 |
+| `skeleton/ARCHITECTURE.md` | 생성 프로젝트의 아키텍처 기준(SSOT)과 ★핵심 MUST 요약. 공통 코드 주석이 형제 템플릿의 § 번호를 참조하므로 절 번호를 형제와 같게 둔다 |
 | `skeleton/app/` 의 공통 계층 | `config.py`·`cli.py`·`core/`·`db/`·`models/`·`schemas/`·`services/` 와 `skeleton/alembic/` — `fastapi-react-pg-starter` 의 `skeleton/backend/` 에서 **파일 그대로 복사**한 것(아래 「공통 계층」) |
 | `skeleton/.claude/skills/` | 생성 프로젝트용 작업 스킬 — 이 저장소에서도 `skeleton/` 을 고칠 때 참고한다(특히 `stack-versions`) |
 | `skeleton/.github/` | 생성 프로젝트 CI(`workflows/ci.yml`)·PS 5.1 구문 검사 스크립트·PR 템플릿 |

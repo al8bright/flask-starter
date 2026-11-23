@@ -292,7 +292,7 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 
 ## 상세 문서
 
-- `ARCHITECTURE.md`: 이 프로젝트의 아키텍처, MUST 규칙과 배포 전 체크리스트
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): 이 프로젝트의 아키텍처, MUST 규칙과 배포 전 체크리스트
 - [`PLAN.md`](PLAN.md): TDD 작업 순서와 기능별 체크리스트
 - [`AGENTS.md`](AGENTS.md): 저장소 안에서 자립적으로 동작하는 AI 에이전트 공통 지침([`CLAUDE.md`](CLAUDE.md)가 import)
 - [`docs/`](docs/README.md): PRD·유저 플로우·기획서 등 프로젝트 고유 문서
