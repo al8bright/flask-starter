@@ -69,7 +69,7 @@
 - **설정**: `pydantic-settings` (BaseSettings) / **검증**: Pydantic 2.x
 - **인증**: DB 세션 불투명 토큰 + bcrypt(§9). `PyJWT` 는 인증에 쓰지 않지만 공통 `core/security.py` 가 import 하므로 남긴다
 - **업로드·정화**: Pillow(이미지 검증·재인코딩), nh3(본문 HTML 허용 목록)
-- **화면**: Jinja 템플릿 + **htmx 2**(`app/static/js/htmx.min.js` 벤더링, 버전은 `versions.env` 의 `HTMX_VERSION`) + `app/static/js/app.js`(확인 대화상자 하나)
+- **화면**: Jinja 템플릿 + **htmx 2**(`app/static/js/htmx.min.js` 벤더링, 버전은 `versions.env` 의 `HTMX_VERSION`) + `app/static/js/app.js`(확인 대화상자) + `app/static/js/editor/`(공지 본문 위지웍 편집기, 표준 DOM API 로 작성한 ES 모듈)
 - **스타일**: Tailwind CSS v4 **standalone CLI**(`scripts/tailwind.*` 가 `versions.env` 의 `TAILWIND_VERSION` 바이너리를 내려받아 SHA-256 을 확인한 뒤 빌드) — §15
 - **테스트·린트**: `pytest` + Flask `test_client`, `ruff`
 - **버전 고정**: `requirements.txt` 에 **`==` 정확한 버전 핀** (재현성 우선). 버전별 주의는 [`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)
@@ -131,12 +131,13 @@ app/
 │   ├── api.py              # /api/v1/health, /api/v1/health/db, /api/v1/notices/<id>/attachments/<aid>
 │   ├── files.py            # /uploads/public/<key> 정적 서빙, 첨부 응답·업로드 읽기 공통
 │   ├── errors.py           # ServiceError·StorageError·CSRF·HTTP 오류 → 응답 (STATUS_BY_CODE)
+│   ├── accept.py           # wants_json — Accept 가 JSON 을 HTML 보다 선호하는지(편집기 fetch)
 │   ├── htmx.py             # is_htmx, render_page_or_partial, htmx_redirect
 │   ├── forms.py            # parse_form(pydantic), checkbox, optional_*
 │   ├── pagination.py       # page_arg, page_links
 │   └── security_headers.py # CSP·nosniff·HSTS·Cache-Control
 ├── templates/              # base.html · public/ · auth/ · admin/ · errors/ · partials/
-└── static/                 # css/input.css(→ app.css 빌드) · js/htmx.min.js · js/app.js
+└── static/                 # css/input.css(→ app.css 빌드) · js/htmx.min.js · js/app.js · js/editor/(본문 편집기 ES 모듈)
 ```
 
 ### 계층 규칙 (MUST)
@@ -359,7 +360,9 @@ class Order(Base):
 
 - 허용 태그·속성·URL 스킴은 `core/sanitize.py` 의 표가 SSOT 다(`script`·`style`·`on*`·`style=` 속성·`javascript:` 는 제거, `iframe` 은 YouTube embed 만 — `sandbox` 강제). 정화 후 글자·`img`·`iframe` 이 없으면 빈 본문으로 422.
 - 정화 결과의 `style` 제거와 `iframe` 호스트는 CSP(§9)와 한 쌍이다 — 허용 목록을 넓히면 CSP 와 `tests/test_sanitize.py` 를 같은 변경에서 고친다.
-- 본문 편집은 HTML `textarea` 다. 본문 이미지는 `POST /admin/editor/images` 로 올리면 붙여 넣을 `<img>` 코드를 돌려준다(`partials/editor_image.html`). 리치 텍스트 편집기를 들이면 정화 허용 목록과 CSP 를 함께 검토한다.
+- 본문 편집은 위지웍 편집기(`app/static/js/editor/`, §13)다. 편집기는 숨긴 `textarea[data-rich-editor]` 에 저장 HTML 을 동기화하고, 서버는 그 값을 그대로 정화한다 — 편집기는 정화를 대신하지 않는다. JS 가 없으면 HTML `textarea` 와 이미지 코드 받기(`partials/editor_image.html`)로 동작한다.
+- 편집기가 만드는 저장 마크업(`media-html.js`·`editor-dom.js`)은 정화 허용 목록과 한 쌍이다. 마크업을 바꾸면 `core/sanitize.py` 허용 목록과 `tests/test_editor.py` 출력 계약을 함께 확인한다.
+- 본문 이미지 `POST /admin/editor/images` 는 `Accept` 가 JSON 을 선호하면(`app/web/accept.py` 의 `wants_json`) 201 `{key, url, width, height}` 를, 아니면 붙여 넣을 `<img>` 코드 조각을 돌려준다. 오류도 JSON 요청이면 `{detail, code}` JSON 이다.
 
 ### 화면 경로 요약
 
@@ -426,7 +429,7 @@ class Order(Base):
 ### 응답 보안 헤더 · CSP · 캐시 (`app/web/security_headers.py`)
 
 - 모든 응답에 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin` 을 붙인다.
-- **CSP**: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`. 공지 본문의 외부 이미지 허용(`img-src https:`)과 YouTube embed(`frame-src`)는 정화 허용 목록(§8)과 한 쌍이다. 이 CSP 가 htmx 사용 방식(§13)을 제한한다.
+- **CSP**: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`. 공지 본문의 외부 이미지 허용(`img-src https:`)과 YouTube embed(`frame-src`)는 정화 허용 목록(§8)과 한 쌍이다. `img-src blob:` 은 편집기가 업로드 중 미리보기(`URL.createObjectURL`)에 쓴다 — 저장 HTML 에는 `blob:` 이 남지 않는다(직렬화 때 업로드 중 자리표시를 제거한다). 이 CSP 가 htmx 사용 방식(§13)을 제한한다.
 - HSTS(`max-age=31536000`)는 `COOKIE_SECURE=true` 이거나 `APP_ENV=production` 일 때만 보낸다.
 - HTML 응답은 `Cache-Control: private, no-store` 가 기본이다(로그인 상태에 따라 내용이 달라진다). `/admin*`·`/login`·`/logout` 은 항상 `private, no-store`. 공개 업로드 파일은 길게 캐시한다(§8).
 
@@ -513,6 +516,7 @@ def _clear_settings_cache():
 - **조회**: GET → 전체 페이지. 목록 검색·페이지 이동은 같은 URL 의 GET 폼·링크다.
 - **변경**: POST 폼(`{{ csrf_field() }}` 포함) → 성공하면 `flash(…, "success")` + redirect(PRG), 검증 실패면 입력값·오류와 함께 같은 템플릿을 **422** 로.
 - ⛔ GET 으로 상태를 바꾸지 않는다(로그아웃 포함). ⛔ 상태를 바꾸는 JSON API 를 화면용으로 만들지 않는다 — 변경은 CSRF 로 보호된 폼 POST 로만 한다.
+  예외는 편집기 이미지 업로드 하나다. 같은 폼 POST 경로가 `Accept: application/json` 일 때만 JSON 으로 답하며(§8), CSRF 는 `X-CSRFToken` 헤더(`<meta name="csrf-token">` 값)로 검사한다.
 
 ### htmx (선택적 보강)
 
@@ -530,9 +534,11 @@ def _clear_settings_cache():
 
 ### 스크립트
 
-- 스크립트는 `app/static/js/` 의 파일만 쓰고 `base.html` 에서 `defer` 로 불러온다. 현재 `htmx.min.js`(벤더링)와 `app.js`(`data-confirm="<문구>"` 폼의 제출 전 확인) 뿐이다.
+- 스크립트는 `app/static/js/` 의 파일만 쓴다. 전역 스크립트는 `base.html` 에서 `defer` 로 불러온다 — `htmx.min.js`(벤더링)와 `app.js`(`data-confirm="<문구>"` 폼의 제출 전 확인).
+- 화면 하나에만 필요한 스크립트는 `{% block scripts %}` 에 `<script type="module">` 로 불러온다. 공지 작성·수정 화면의 편집기(`js/editor/editor.js` 진입점)가 그렇다 — `textarea[data-rich-editor]` 를 찾아 붙이고(`data-upload-url`·`data-max-image-mb`), JS 가 없으면 `textarea` 그대로 동작한다(`[data-editor-fallback]` 안내는 편집기가 붙을 때 숨긴다).
+- 편집기 모듈은 빌드 없이 브라우저가 직접 읽는 ES 모듈이다. `import` 는 `./<파일>.js` 상대 경로만 쓰고 모듈 사이 순환을 만들지 않는다. 형제 템플릿 편집기와 파일 단위로 대응하므로 각 파일 첫 줄에 대응 파일을 명시한다.
 - ⛔ 인라인 `<script>`·`on*=` 속성·`javascript:` URL·외부 CDN 스크립트(CSP §9). 외부 라이브러리가 필요하면 벤더링하고 버전·무결성을 `scripts/versions.env` 에 기록한다([`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)).
-- DOM 조작은 브라우저 표준 API(`querySelector`·`closest`·`classList`·`addEventListener` 위임·`fetch`)로 한다. ⛔ jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다 — 화면 갱신은 htmx 가, 나머지는 표준 API 가 맡는다. HTML 문자열을 `innerHTML` 로 넣을 때 `style=`·`<script>` 가 들어가지 않게 한다(CSP 위반).
+- DOM 조작은 브라우저 표준 API(`querySelector`·`closest`·`classList`·`addEventListener` 위임·`fetch`)로 한다. ⛔ jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다 — 화면 갱신은 htmx 가, 나머지는 표준 API 가 맡는다. HTML 문자열을 `innerHTML` 로 넣을 때 `style=`·`<script>` 가 들어가지 않게 한다(CSP 위반). 크기·위치는 `el.style.setProperty` 같은 CSSOM 으로 정한다(CSP 가 차단하지 않는다). Chrome 은 `template`·`DOMParser` 로 파싱만 해도 `style`·`on*` 속성마다 위반을 보고하므로, 외부 HTML(붙여넣기)은 편집기 `parseFragment` 처럼 파싱 전에 그 속성을 제거한다.
 - 되돌릴 수 없는 폼(삭제·강제 종료·비활성화)에는 `data-confirm` 을 붙인다.
 
 ---

@@ -4,6 +4,7 @@
 응답 형식은 요청에 따라 고른다.
 
 - /api/v1/*      JSON {"detail", "code"}
+- Accept 가 JSON 우선(web/accept.py — 편집기 이미지 업로드 fetch) 도 같은 JSON
 - htmx 요청      partials/alert.html 을 #alerts 영역에 끼운다(HX-Retarget).
                  base.html 의 htmx-config 가 4xx·5xx 응답도 swap 하게 해 둔다.
 - 그 밖          errors/error.html 전체 페이지
@@ -19,6 +20,7 @@ from werkzeug.exceptions import HTTPException, MethodNotAllowed
 
 from app.core.storage import StorageError
 from app.services.exceptions import ServiceError
+from app.web.accept import wants_json
 from app.web.htmx import is_htmx
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,7 @@ def _is_api() -> bool:
 
 
 def error_response(status: int, message: str, code: str) -> Response:
-    if _is_api():
+    if _is_api() or wants_json():
         response = jsonify(detail=message, code=code)
         response.status_code = status
         return response

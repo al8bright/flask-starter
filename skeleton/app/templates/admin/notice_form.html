@@ -1,5 +1,6 @@
 {% extends "admin/_layout.html" %}
 {% from "partials/fields.html" import field_error %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='js/editor/editor.js') }}"></script>{% endblock %}
 {% block admin %}
 <a href="{{ url_for('admin.notices') }}" class="text-sm text-muted hover:text-ink">← 공지 목록</a>
 <h1 class="mt-2 text-2xl font-semibold">{{ '공지 수정' if notice else '새 공지' }}</h1>
@@ -11,12 +12,14 @@
     <input name="title" value="{{ form.title }}" maxlength="200" required class="input mt-1">
     {{ field_error(errors, 'title') }}
   </label>
-  <label class="block">
-    <span class="text-sm">본문 (HTML)</span>
-    <textarea name="body_html" rows="16" class="input mt-1 font-mono text-sm">{{ form.body_html }}</textarea>
-    <span class="mt-1 block text-xs text-muted">저장할 때 허용된 태그만 남깁니다(app/core/sanitize.py). 스크립트와 style 속성은 지워집니다.</span>
+  {#- 본문: JS 가 있으면 편집기(static/js/editor/)가 textarea 를 숨기고 대신한다. 없으면 HTML 을 직접 쓴다. -#}
+  <div>
+    <label for="body_html" class="text-sm">본문</label>
+    <textarea id="body_html" name="body_html" rows="16" class="input mt-1 font-mono text-sm"
+              data-rich-editor data-upload-url="{{ url_for('admin.upload_editor_image') }}" data-max-image-mb="{{ max_image_mb }}">{{ form.body_html }}</textarea>
+    <span class="mt-1 block text-xs text-muted" data-editor-fallback>HTML 로 입력합니다. 저장할 때 허용된 태그만 남깁니다(app/core/sanitize.py). 스크립트와 style 속성은 지워집니다.</span>
     {{ field_error(errors, 'body_html') }}
-  </label>
+  </div>
   <div class="flex gap-6 text-sm">
     <label class="flex items-center gap-2"><input type="checkbox" name="is_pinned" {{ 'checked' if form.is_pinned }}> 상단 고정</label>
     <label class="flex items-center gap-2"><input type="checkbox" name="is_published" {{ 'checked' if form.is_published }}> 게시</label>
@@ -24,7 +27,8 @@
   <button class="btn-primary">저장</button>
 </form>
 
-<section class="mt-10 rounded-lg border border-line bg-panel p-4">
+{#- JS 가 없을 때의 본문 이미지 올리기 — 편집기가 붙으면 숨긴다(이미지는 편집기 도구 모음으로 넣는다). -#}
+<section class="mt-10 rounded-lg border border-line bg-panel p-4" data-editor-fallback>
   <h2 class="text-sm font-semibold">본문 이미지</h2>
   {#- htmx 가 있으면 아래 영역에 붙여 넣을 코드를 보여 주고, 없으면 flash 로 알려 준다. -#}
   <form method="post" action="{{ url_for('admin.upload_editor_image') }}" enctype="multipart/form-data" class="mt-2 flex flex-wrap items-center gap-2"

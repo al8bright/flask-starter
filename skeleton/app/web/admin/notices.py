@@ -1,10 +1,11 @@
 """관리자 — 공지 작성·수정·삭제, 첨부, 본문 이미지 업로드.
 
 본문은 HTML 이다. 저장 직전에 서비스 계층이 nh3 로 정화한다(core/sanitize.py) — 화면은 정화된 값만 |safe 로 출력한다.
-본문 이미지는 /admin/editor/images 로 올리고 돌려받은 <img> 코드를 본문에 붙여 넣는다.
+본문은 편집기(static/js/editor/)가 쓰고, 이미지는 편집기가 /admin/editor/images 로 올린다(JSON).
+JS 가 없으면 textarea 에 HTML 을 직접 쓰고, 이미지는 같은 경로로 올려 돌려받은 <img> 코드를 붙여 넣는다.
 """
 
-from flask import Response, flash, make_response, redirect, render_template, request, url_for
+from flask import Response, flash, jsonify, make_response, redirect, render_template, request, url_for
 
 from app.config import get_settings
 from app.dependencies import current_user, get_db
@@ -12,6 +13,7 @@ from app.schemas.common import DEFAULT_PAGE_SIZE, MAX_QUERY_LENGTH
 from app.schemas.notice import NoticeWrite
 from app.services import notice_service, upload_service
 from app.services.exceptions import ServiceError
+from app.web.accept import wants_json
 from app.web.admin import bp
 from app.web.files import attachment_response, read_upload
 from app.web.forms import checkbox, parse_form
@@ -29,7 +31,14 @@ def _form_values() -> dict:
 
 
 def _render_form(*, notice=None, form: dict, errors: dict, status: int = 200) -> Response:
-    return make_response(render_template("admin/notice_form.html", notice=notice, form=form, errors=errors), status)
+    html = render_template(
+        "admin/notice_form.html",
+        notice=notice,
+        form=form,
+        errors=errors,
+        max_image_mb=get_settings().max_image_upload_mb,
+    )
+    return make_response(html, status)
 
 
 @bp.get("/notices")
@@ -125,6 +134,11 @@ def delete_attachment(notice_id: int, attachment_id: int) -> Response:
 def upload_editor_image() -> Response | str:
     data, _ = read_upload(request.files.get("file"), max_mb=get_settings().max_image_upload_mb)
     image = upload_service.save_image(data, category="editor")
+    if wants_json():
+        # 편집기(static/js/editor/upload.js) — 본문에 넣을 공개 URL 과 서버가 재인코딩한 실제 크기.
+        response = jsonify(key=image.key, url=image.url, width=image.width, height=image.height)
+        response.status_code = 201
+        return response
     if is_htmx():
         return render_template("partials/editor_image.html", image=image)
     flash(f'본문에 붙여 넣을 코드: <img src="{image.url}" alt="">', "success")

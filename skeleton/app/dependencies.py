@@ -18,7 +18,7 @@ from functools import wraps
 from typing import Any
 from urllib.parse import urlsplit
 
-from flask import Flask, Response, abort, current_app, g, redirect, request, url_for
+from flask import Flask, Response, abort, current_app, g, jsonify, redirect, request, url_for
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
@@ -26,6 +26,7 @@ from app.core.security import hash_refresh_token, parse_session_id
 from app.models.auth_session import AuthSession
 from app.models.user import User, UserRole
 from app.services import session_service, user_service
+from app.web.accept import wants_json
 
 AUTH_COOKIE = "__PROJECT_SNAKE___session"
 AUTH_COOKIE_PATH = "/"
@@ -124,6 +125,11 @@ def _login_redirect() -> Response:
     if request.headers.get("HX-Request") == "true":
         # htmx 요청에 302 를 주면 로그인 화면이 partial 자리에 끼워진다 — 전체 페이지 이동을 지시한다.
         return Response(status=401, headers={"HX-Redirect": target})
+    if wants_json():
+        # fetch(편집기 업로드)는 302 를 따라가 로그인 HTML 을 받게 된다 — JSON 401 로 알린다.
+        response = jsonify(detail="로그인이 필요합니다.", code="http_401")
+        response.status_code = 401
+        return response
     return redirect(target)
 
 

@@ -5,6 +5,7 @@
   htmx 의 인라인 indicator 스타일은 base.html 의 htmx-config 로 끈다(includeIndicatorStyles=false).
 - hx-on·hx-vals="js:" 처럼 문자열을 eval 하는 htmx 기능은 쓰지 않는다(unsafe-eval 을 열지 않는다).
 - 이미지: 공지 본문은 외부 http(s) 이미지를 허용하므로(core/sanitize.py) img-src 에 https: 를 둔다.
+  blob: 은 편집기의 업로드 중 자리표시·자르기 미리보기용이다(같은 페이지가 만든 주소만 해당).
 - iframe: 공지 본문의 유튜브 임베드만(core/sanitize.py 의 YOUTUBE_EMBED_RE 와 한 쌍).
 """
 
@@ -17,7 +18,7 @@ CONTENT_SECURITY_POLICY = "; ".join(
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self'",
-        "img-src 'self' data: https:",
+        "img-src 'self' data: blob: https:",
         "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
         "object-src 'none'",
         "base-uri 'self'",

@@ -45,10 +45,10 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 ## 4. CSP 제약 (§9·§13 — 보안 헤더 `app/web/security_headers.py`)
 
-- `script-src 'self'`: ⛔ 인라인 `<script>`, `on*=` 속성, `javascript:` URL, 외부 CDN 스크립트. 스크립트가 필요하면 `app/static/js/` 에 파일로 두고 `base.html` 에서 `defer` 로 불러온다. 외부 라이브러리는 벤더링하고 버전을 `scripts/versions.env` 에 기록한다([stack-versions]).
-- `style-src 'self'`: ⛔ `style="..."` 속성·`<style>` 블록. Tailwind 클래스를 쓴다.
+- `script-src 'self'`: ⛔ 인라인 `<script>`, `on*=` 속성, `javascript:` URL, 외부 CDN 스크립트. 스크립트가 필요하면 `app/static/js/` 에 파일로 둔다. 전역 스크립트는 `base.html` 에서 `defer` 로, 한 화면 전용은 그 템플릿의 `{% block scripts %}` 에서 `<script type="module">` 로 불러온다(예: 공지 작성 화면의 `js/editor/editor.js`). 외부 라이브러리는 벤더링하고 버전을 `scripts/versions.env` 에 기록한다([stack-versions]).
+- `style-src 'self'`: ⛔ `style="..."` 속성·`<style>` 블록. Tailwind 클래스를 쓴다. JS 가 크기·위치를 정해야 하면 `el.style.setProperty`(CSSOM)를 쓴다 — ⛔ `setAttribute("style", …)`·`cssText`.
 - htmx 설정(`base.html` 의 `htmx-config` 메타)은 `allowEval:false`·`includeIndicatorStyles:false` 다 — `hx-on`·`hx-vars`·`js:` 접두사는 동작하지 않는다.
-- `img-src 'self' data: https:`, `frame-src` 는 YouTube 만 허용한다. 다른 출처가 필요하면 헤더를 고치고 이유를 §22 에 남긴다.
+- `img-src 'self' data: blob: https:`(`blob:` 은 편집기 업로드 미리보기), `frame-src` 는 YouTube 만 허용한다. 다른 출처가 필요하면 헤더를 고치고 이유를 §22 에 남긴다.
 
 ## 5. 스타일 (Tailwind CSS v4, §15)
 

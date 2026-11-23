@@ -84,5 +84,24 @@
   .rich-text .align-left { @apply text-left; }
   .rich-text .align-center { @apply text-center; }
   .rich-text .align-right { @apply text-right; }
-  .rich-text .video iframe { @apply aspect-video h-auto w-full; }
+  .rich-text :where(mark) { @apply rounded-sm bg-yellow-200 px-0.5 text-inherit; }
+  /* 영상은 저장된 width 속성(편집기 크기 조절)을 따르되 화면보다 넓어지지 않는다. */
+  .rich-text .video { @apply my-4 max-w-full; }
+  .rich-text .video iframe { @apply block aspect-video h-auto max-w-full border-0; }
+  .rich-text .align-center .video iframe,
+  .rich-text .video.align-center iframe { @apply mx-auto; }
+}
+
+/* 본문 편집기(static/js/editor/) 편집 영역 — 보기와 같은 .rich-text 에 편집 전용 표시만 더한다.
+   편집 전용 속성(data-selected·data-uploading·contenteditable)은 저장 전 직렬화에서 지워진다. */
+@layer components {
+  .editor { caret-color: var(--color-accent); }
+  .editor[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none absolute text-muted;
+  }
+  .editor :where(img, [data-youtube-video]) { @apply cursor-pointer; }
+  .editor iframe { @apply pointer-events-none; }
+  .editor [data-selected] { @apply outline-2 outline-offset-2 outline-accent; }
+  .editor img[data-uploading] { @apply max-h-48 animate-pulse opacity-50; }
 }

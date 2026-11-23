@@ -47,7 +47,8 @@
 - [x] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — Docker `postgres:16`(16.15)에서 통과, `alembic check` 차이 없음. 앱 연결의 세션 시각대 `Asia/Seoul`, 헬스 체크·로그인·관리자 화면·공지 작성(본문 정화)·htmx 검색 partial 확인(2026-11-23)
 - [x] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 원인 확인: 생성된 DDL 은 `DEFAULT ''` 로 정상이고, Alembic 1.20.1 `SQLiteImpl.compare_server_default` 의 따옴표 제거 정규식(`'(.+)'`)이 빈 문자열 `''` 을 벗기지 못해 DB 에서 읽은 값 `''` 과 모델의 빈 문자열이 다르다고 판정한다. 마이그레이션·모델 문제가 아니므로 고치지 않는다. PostgreSQL 에서는 `alembic check` 가 차이 없음으로 통과하였다
 - [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증(2026-11-23 재시도도 미연결). HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)과 템플릿 정적 검사(`style=` 속성·인라인 `<script>`·`on*=` 속성·`hx-on`·`js:`·`<style>` 없음)는 확인
-- [ ] 공지 본문 편집기 — 검토 완료([`docs/reviews/2026-11-23-wysiwyg-editor.md`](docs/reviews/2026-11-23-wysiwyg-editor.md)): 형제 자체 편집기(contentEditable)를 바닐라 JS 로 이식하고 nh3 정화는 그대로 두는 안을 권장. 착수 여부·범위(1단계·2단계) 결정 대기
+- [x] 공지 본문 편집기 — 형제 자체 편집기를 바닐라 JS ES 모듈로 이식하였다(1·2단계, nh3 정화 유지). Chrome headless 시나리오 27개·CSP 위반 0건([`docs/reviews/2026-11-23-wysiwyg-editor.md`](docs/reviews/2026-11-23-wysiwyg-editor.md) 「후속 반영」)
+  - [ ] 실제 한글 IME 입력·Firefox·Safari·터치 기기 조작은 미검증
 - [x] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic) — `scaffold.ps1`·`scaffold.sh` 를 설치 포함으로 실행해 두 DB 모두 시각대 `Asia/Seoul`·리비전 `0004_notices_banners`, 생성물 동일(`.env`·산출물 제외), `.env` 활성 키 = `.env.example`. 접속 불가(빈 포트)면 두 판 모두 DB 단계를 건너뛰고 수동 안내 후 종료 코드 2
   - [ ] 대화형 입력(접속 정보 재입력 1회)은 미검증 — 이 환경은 표준 입력이 터미널이 아니다
 - [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증

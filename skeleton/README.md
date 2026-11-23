@@ -110,7 +110,7 @@ flowchart LR
 
 - `/admin/*` 는 비로그인이면 로그인 화면으로, 로그인하였지만 관리자가 아니면 403 으로 보낸다. htmx 요청이면 401 과 `HX-Redirect` 로 로그인 화면을 연다.
 - 업로드 파일은 `UPLOAD_DIR`(기본 `uploads/`)에 저장된다. `public/`(본문·배너 이미지)만 `/uploads/public/` 으로 서빙하고, `private/`(공지 첨부)는 다운로드 경로로만 내려간다.
-- 공지 본문 편집기는 HTML textarea 다. 본문 이미지는 업로드 후 돌려받은 `<img>` 코드를 본문에 붙여 넣는다.
+- 공지 본문은 위지웍 편집기로 쓴다 — 서식·링크·붙여넣기 정리, 이미지 업로드(자르기·회전·크기 조절, 끌어 놓기), YouTube 삽입. 저장 시 서버가 nh3 로 정화한다. JS 가 꺼져 있으면 HTML textarea 와 이미지 코드 받기로 동작한다.
 
 ## 인증과 기본 계정
 
@@ -175,7 +175,7 @@ flowchart LR
 | `app/dependencies.py` | 요청별 DB 세션, 현재 사용자, `login_required`·`admin_required`, 인증 쿠키 |
 | `app/web/` | 블루프린트(`public`·`auth`·`admin`·`api`·`files`)와 공용 헬퍼(`htmx`·`forms`·`pagination`·`errors`·`security_headers`) |
 | `app/templates/` | Jinja 템플릿 — `base.html`, 영역별 폴더, htmx 응답용 `partials/` |
-| `app/static/` | `css/input.css`(Tailwind 입력), `js/htmx.min.js`(벤더링), `js/app.js` |
+| `app/static/` | `css/input.css`(Tailwind 입력), `js/htmx.min.js`(벤더링), `js/app.js`, `js/editor/`(본문 편집기 ES 모듈) |
 | `app/config.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` | 형제 FastAPI 템플릿과 같은 공통 계층 |
 | `scripts/` | bootstrap, Tailwind 빌드, 버전 기록(`versions.env`) |
 | `tests/` | pytest — Flask `test_client` 로 화면·API, 서비스 단위 테스트 |

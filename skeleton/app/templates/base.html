@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  {#- fetch 로 POST 하는 스크립트(편집기 이미지 업로드)가 X-CSRFToken 헤더에 싣는 값 — htmx 는 아래 hx-headers 를 쓴다. -#}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% block scripts %}{% endblock %}
 </head>
 {#- htmx 요청에 CSRF 토큰을 싣는다 — hx-headers 의 JSON 은 eval 하지 않는다. -#}
 <body class="min-h-screen bg-surface text-ink antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>

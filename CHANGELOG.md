@@ -7,6 +7,29 @@
 
 ---
 
+## 2026-11-23 — 공지 본문 위지웍 편집기 이식
+
+형제 템플릿의 자체 편집기(contentEditable, 라이브러리 없음)를 빌드 없는 바닐라 JS ES 모듈로 옮겼다. 저장 마크업은 형제와 같고 서버 정화(nh3, 공통 계층)는 바꾸지 않았다.
+
+### Added (추가)
+
+- `skeleton/app/static/js/editor/`: 도구 모음(문단·제목·굵게·기울임·밑줄·취소선·형광펜·서식 지우기·정렬·목록·인용·구분선·링크), 붙여넣기 정리, 이미지 업로드(자르기·회전 대화상자, 모서리 핸들 크기 조절, 크기 프리셋, 대체 텍스트, 다시 자르기·바꾸기, 끌어 놓기·붙여넣기 업로드), YouTube 삽입. 업로드 중에는 저장 버튼을 비활성화한다. 한글 조합 중(`isComposing`)에는 단축키를 처리하지 않는다.
+- `skeleton/app/web/accept.py`: `wants_json` — `Accept` 가 JSON 을 HTML 보다 선호하는지 판정한다.
+- `skeleton/tests/test_editor.py`: JSON 업로드·오류·비로그인 401·CSRF 헤더, 편집기 마운트, CSP `blob:`, 편집기 출력의 정화 후 보존, 모듈 import 경로, 금지 코드(`eval`·`style=`·`cssText` 등) 검사.
+
+### Changed (변경)
+
+- `POST /admin/editor/images`: JSON 요청이면 201 `{key, url, width, height}` 를, 오류는 `{detail, code}` 를, 비로그인은 401 JSON 을 돌려준다. 브라우저 폼 요청은 이전과 같다.
+- CSP `img-src` 에 `blob:` 을 추가하였다(업로드 중 미리보기).
+- `base.html`: `<meta name="csrf-token">` 과 `{% block scripts %}` 를 추가하였다. `notice_form.html` 은 JS 가 없으면 기존 textarea·이미지 코드 받기로 동작한다.
+- `skeleton/ARCHITECTURE.md` §2·§4·§8·§9·§13, `skeleton/README.md`, `add-screen` 스킬: 편집기 구조·JSON 업로드 예외·CSSOM 사용·파싱 전 인라인 속성 제거를 반영하였다.
+
+### 검증
+
+- 생성물(Python 3.13.12): `pip check`·`ruff check`·`pytest -q -W error::DeprecationWarning`(189건) 통과, 잔여 토큰 없음, Tailwind 빌드 통과.
+- 설치된 Chrome headless(Playwright) + PostgreSQL 16 + waitress 로 편집 시나리오 27개 통과, CSP 위반 0건·콘솔 오류 0건. 이 과정에서 크기 조절 후 오버레이가 사라지는 결함과 붙여넣기 HTML 파싱 시 CSP 위반 보고를 발견하여 고쳤다.
+- 미검증: 실제 한글 IME 입력, Firefox·Safari, macOS/Linux, 터치 기기 조작.
+
 ## 2026-11-23 — jQuery 4.1.0 도입 검토
 
 ### Added (추가)
