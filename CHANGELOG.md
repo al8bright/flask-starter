@@ -7,6 +7,31 @@
 
 ---
 
+## 2026-11-23 — 운영 배포 보강과 생성 기준 기록
+
+골격에 빠져 있던 운영 설정·배포 예시·기본 파일을 보강하였다.
+
+### Added (추가)
+
+- **리버스 프록시 신뢰 `TRUSTED_PROXY_HOPS`**(`app/web/proxy.py`, 기본 0): 값만큼 `X-Forwarded-For`·`Proto`·`Host` 를 믿는다(werkzeug `ProxyFix`). HTTPS 를 끝내는 프록시 뒤에서는 앱이 요청을 HTTP 로 보아 Flask-WTF 의 HTTPS `Referer` 검사(`request.is_secure` 일 때만 동작)가 적용되지 않으므로, 프록시 뒤 운영은 1 로 둔다. `COOKIE_SECURE=true` 인데 0 이면 기동 시 경고하고, 범위(0~3)를 벗어나면 기동을 거부한다. 공통 `config.py` 는 형제 템플릿과 같은 파일이라 고치지 않고 웹 계층 전용 설정으로 두었다(ARCHITECTURE §5). `.env.example`·두 스캐폴드의 `.env` 생성 블록에 키를 추가하였다.
+- **운영 배포 예시 `skeleton/deploy/`**: systemd 서비스(gunicorn), nginx 사이트(`/login` IP 단위 요청 제한·본문 상한·전달 헤더), 갱신 배포 스크립트 `deploy.sh`(pull → pip → CSS → alembic → 재기동 → 상태 확인, 실패 시 중단), 최초 설치 절차(앱 전용 DB 계정·운영 `.env` 값). 값은 일반 예시이며, 공개 저장소에 실제 운영 값을 두지 않도록 안내한다. 토큰 치환 대상 확장자에 `.sh`·`.conf`·`.service` 를 더하였다.
+- **생성 기준 기록 `.flask-starter`**: 두 스캐폴드가 생성 프로젝트 루트에 템플릿 커밋(`commit=<해시>`, 미커밋 변경이 있으면 `-dirty`, git 이 없으면 `unknown`)을 남긴다. 이후 템플릿 수정을 옮길 때 이 커밋 이후의 CHANGELOG 항목과 비교한다(생성 프로젝트 README 「템플릿 수정 반영」). HTTP 로 서빙되는 위치가 아니다.
+- 기본 아이콘 `static/img/favicon.svg`·`favicon.ico`(자리표시 그림)와 `/favicon.ico` 경로 — 브라우저가 매 화면 요청해 404 가 로그에 쌓이던 문제를 없앴다.
+- `/robots.txt`(모두 허용)와 로그인·관리자·API 응답의 `X-Robots-Tag: noindex`. 색인 제외 경로를 `robots.txt` 에 나열하지 않는다 — 누구나 읽는 파일이라 관리자 경로 목록이 공격 단서가 된다.
+- `base.html` 에 `{% block head %}`(화면별 `meta description` 등)와 `{% block main %}`(전체 폭 띠가 필요한 화면이 `<main>` 을 통째로 대체한다)을 두었다.
+
+### Changed (변경)
+
+- CSP 위반 코드 정적 점검을 편집기 폴더에서 `app/static/js/` 아래 모든 스크립트로 넓혔다(`tests/test_static_js.py`, 벤더링한 htmx 제외). 새 스크립트도 테스트를 따로 만들지 않고 검사된다.
+- `skeleton/ARCHITECTURE.md`: §3·§4 구조, §5 웹 계층 전용 설정, §8 외부 HTTP 호출 지침(서버 호출·짧은 타임아웃·캐시·실패 시 직전 값·재시도 간격·테스트에서 네트워크 차단), §9 `X-Robots-Tag`, §12 테스트 배치, §13 블록·아이콘·검색엔진, §14 프록시 신뢰, §17 키 표, §21 체크리스트. 생성 프로젝트 README·AGENTS·PLAN·`add-screen`·`stack-versions` 스킬, 루트 README·AGENTS(ShellCheck 대상에 `deploy.sh`)를 맞추었다. 템플릿 CI 의 ShellCheck 대상에 `skeleton/deploy/deploy.sh` 를 추가하였다.
+
+### 검증
+
+- 실패 테스트를 먼저 쓰지 않고 구현과 함께 추가하였다(Red 단계 미확인). 추가 테스트: 프록시 신뢰 0·1 의 scheme·host·IP, 잘못된 값 기동 거부, `COOKIE_SECURE=true` + 0 경고, `/favicon.ico`·아이콘 링크, `robots.txt` 에 비공개 경로 없음, `X-Robots-Tag` 대상·비대상, 모든 스크립트 CSP 점검.
+- `scaffold.ps1`(PowerShell 5.1)·`scaffold.sh`(Git Bash)로 이름 `My App`, `-SkipDb -SkipInstall` 생성 → 두 결과물이 `.env` 를 빼고 같음(`.flask-starter` 포함), 잔여 토큰 없음, `.env` 키 집합 = `.env.example`, `deploy/` 파일의 토큰이 `my_app`·`My App` 으로 치환됨.
+- 생성물(Python 3.13.14 venv): `pip check`·`ruff check` 통과, `pytest -q` 214건 통과. 공통 계층 동일(`tools/check_common_layer.py`). 모든 `.ps1` PowerShell 5.1 구문 검사, 모든 `.sh` `bash -n`·ShellCheck(`-S warning`) 통과.
+- **미검증**: `deploy/` 예시를 실제 Linux 서버에서 실행(`nginx -t`·systemd 기동·`deploy.sh`), 브라우저에서 아이콘 표시, POSIX 에서 `deploy.sh` 실행 권한과 `.flask-starter` 생성(push 후 CI `scaffold-posix`).
+
 ## 2026-11-23 — 문서·스캐폴드 정합 점검
 
 템플릿 문서·스킬·스캐폴드 스크립트를 코드와 대조해 어긋난 서술과 두 스크립트 판의 차이를 바로잡았다.

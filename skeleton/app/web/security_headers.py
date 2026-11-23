@@ -7,6 +7,8 @@
 - 이미지: 공지 본문은 외부 http(s) 이미지를 허용하므로(core/sanitize.py) img-src 에 https: 를 둔다.
   blob: 은 편집기의 업로드 중 자리표시·자르기 미리보기용이다(같은 페이지가 만든 주소만 해당).
 - iframe: 공지 본문의 유튜브 임베드만(core/sanitize.py 의 YOUTUBE_EMBED_RE 와 한 쌍).
+- 로그인·관리자·API 응답은 X-Robots-Tag: noindex 로 색인에서 뺀다. robots.txt 에 경로를 적지 않는다 —
+  누구나 읽는 파일이라 관리자 경로 목록이 공격 단서가 된다(app/web/public.py).
 """
 
 from flask import Flask, Response, request
@@ -29,6 +31,8 @@ CONTENT_SECURITY_POLICY = "; ".join(
 
 # 인증 상태에 따라 내용이 달라지는 HTML 은 공유 캐시에 남기지 않는다.
 PRIVATE_NO_STORE = "private, no-store"
+# 검색엔진 색인에서 빼는 블루프린트 — 로그인·관리자 화면과 JSON·첨부 다운로드.
+NOINDEX_BLUEPRINTS = frozenset({"auth", "admin", "api"})
 
 
 def register_security_headers(app: Flask) -> None:
@@ -47,4 +51,6 @@ def register_security_headers(app: Flask) -> None:
             response.headers["Cache-Control"] = PRIVATE_NO_STORE
         if request.path.startswith("/admin") or request.path in ("/login", "/logout"):
             response.headers["Cache-Control"] = PRIVATE_NO_STORE
+        if request.blueprint in NOINDEX_BLUEPRINTS:
+            response.headers["X-Robots-Tag"] = "noindex"
         return response

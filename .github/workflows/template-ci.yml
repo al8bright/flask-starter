@@ -65,7 +65,7 @@ jobs:
           exit $failed
       - name: ShellCheck (게이트 — warning 이상이면 실패)
         # SC2088(따옴표 안의 ~ 는 확장되지 않음)은 사용자에게 보여 주는 안내 문구의 의도된 리터럴이라 제외한다.
-        run: shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh
+        run: shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh skeleton/deploy/deploy.sh
 
   # ── 3. 벤더링 자산 버전 정합 ─────────────────────────────────────────────
   # versions.env 의 기록과 실제 파일이 어긋나면(htmx 만 교체, 해시 파일만 교체) 문서·점검 도구가 틀린 버전을 보고한다.

@@ -2,7 +2,7 @@
 
 | Blueprint | URL            | 내용 |
 |-----------|----------------|------|
-| public    | /              | 홈(배너·최근 공지), 공지 목록·상세 |
+| public    | /              | 홈(배너·최근 공지), 공지 목록·상세, /favicon.ico·/robots.txt |
 | auth      | /login /logout | 로그인·로그아웃 |
 | admin     | /admin         | 대시보드·사용자·세션·공지·배너 (관리자 전용) |
 | api       | /api/v1        | 헬스 체크(JSON)·공지 첨부 다운로드 |

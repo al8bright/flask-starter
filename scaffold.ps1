@@ -58,7 +58,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 # ---------- 템플릿 설정 ----------
 # 토큰을 치환할 파일 확장자 (대소문자 구분, scaffold.sh 와 동일)
-$TokenExtensions = @('.py', '.html', '.css', '.js', '.md', '.ini', '.mako', '.example', '.txt', '.toml')
+$TokenExtensions = @('.py', '.html', '.css', '.js', '.md', '.ini', '.mako', '.example', '.txt', '.toml', '.sh', '.conf', '.service')
 $AppPort = 5000
 # 골격 복사·토큰 치환에서 제외하는 산출물 (scaffold.sh 와 동일)
 #   .tools = 내려받은 Tailwind CLI, uploads·logs = 실행 산출물, app.css = Tailwind 빌드 결과
@@ -454,6 +454,28 @@ if ($LASTEXITCODE -ge 8) { Stop-Scaffold "골격 복사 실패 (robocopy 코드 
 $global:LASTEXITCODE = 0
 Write-Ok "복사 완료"
 
+# 생성 기준 기록 — 템플릿의 이후 수정은 생성 프로젝트에 자동으로 반영되지 않는다. 어떤 수정을 옮길지
+# flask-starter CHANGELOG 와 비교하는 기준으로 커밋을 남긴다(git 이 없거나 zip 으로 받았으면 unknown,
+# 커밋하지 않은 변경이 있으면 -dirty). 내용은 scaffold.sh 와 같다(LF, BOM 없음).
+$_starterRev = 'unknown'
+if (Get-Command git -ErrorAction SilentlyContinue) {
+  # PS 5.1 은 EAP=Stop + 네이티브 stderr(저장소가 아니면 git 이 fatal 을 쓴다) 조합에서 예외화될 수 있어 감싼다.
+  $_eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try {
+    $_rev = "$(& git -C $TemplateDir rev-parse --short=7 HEAD 2>$null)".Trim()
+    if ($LASTEXITCODE -eq 0 -and $_rev) {
+      $_starterRev = $_rev
+      & git -C $TemplateDir diff --quiet HEAD -- 2>$null
+      if ($LASTEXITCODE -ne 0) { $_starterRev = "$_starterRev-dirty" }
+    }
+  } catch { $_starterRev = 'unknown' } finally { $ErrorActionPreference = $_eap; $global:LASTEXITCODE = 0 }
+}
+$_starterNote = "# 이 프로젝트를 생성한 flask-starter 커밋 — 템플릿의 이후 수정은 자동으로 반영되지 않는다.`n" +
+  "# 옮길 변경은 flask-starter 의 CHANGELOG.md 에서 이 커밋 이후 항목을 보고 고른다(README 「템플릿 수정 반영」).`n" +
+  "commit=$_starterRev`n"
+[System.IO.File]::WriteAllText((Join-Path $Target '.flask-starter'), $_starterNote, (New-Object System.Text.UTF8Encoding($false)))
+Write-Ok "생성 기준 기록: .flask-starter (commit=$_starterRev)"
+
 # ---------- 5. 토큰 치환 ----------
 Write-Step "토큰 치환"
 # 복사 단계가 산출물을 제외하지만, 기존 디렉토리 위에 덮어쓴 재실행(이미 install/build 된
@@ -504,6 +526,8 @@ LOGIN_MAX_FAILURES=5
 LOGIN_LOCKOUT_MINUTES=15
 # 운영(HTTPS)에서는 true 로 바꾼다 (APP_ENV=production + false 면 기동 거부).
 COOKIE_SECURE=false
+# HTTPS 를 끝내는 리버스 프록시(nginx) 뒤에서 운영하면 1 로 바꾼다(앱을 바로 노출하면 0).
+TRUSTED_PROXY_HOPS=0
 # 업로드 저장소·크기 상한 — 값은 .env.example 과 같다(설명은 그 파일 참고).
 UPLOAD_DIR=uploads
 PUBLIC_FILES_BASE_URL=

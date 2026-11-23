@@ -27,6 +27,7 @@ flask-starter/
     ├── .github/            # 생성된 프로젝트의 CI(workflows/ci.yml) · PS 5.1 구문 검사 · PR 템플릿
     ├── requirements.txt / pyproject.toml / pytest.ini / alembic.ini
     ├── scripts/            # bootstrap · tailwind (sh / ps1) · versions.env · tailwind-sha256sums.txt
+    ├── deploy/             # 운영 배포 예시 — systemd · nginx · deploy.sh (Linux)
     ├── app/                # Flask 앱 — web/(뷰) · templates/ · static/(js/editor/ 공지 편집기) + 공통 계층(config·core·db·models·schemas·services)
     ├── alembic/            # 마이그레이션
     └── tests/              # pytest
@@ -92,7 +93,8 @@ flowchart TD
     D --> E
     C -- 예 --> E["DB 접속 정보 입력·사전 검사"]
     E --> F["skeleton 복사 — 산출물·.env 제외"]
-    F --> G["토큰 치환 — 프로젝트 이름·snake 이름"]
+    F --> F2[".flask-starter — 생성 기준 커밋 기록"]
+    F2 --> G["토큰 치환 — 프로젝트 이름·snake 이름"]
     G --> H[".env 생성 — DATABASE_URL·SECRET_KEY·관리자 비밀번호"]
     H --> I["venv + pip install"]
     I --> J["psql 로 DB 생성 + 시각대 Asia/Seoul"]
@@ -189,6 +191,10 @@ chmod +x scaffold.sh          # zip 으로 받아 실행 권한이 없을 때만
 
 개발용 기본 관리자 `admin` 은 기동 시 자동 시드된다. **비밀번호는 스캐폴드가 무작위로 생성**해 `.env` 의 `DEFAULT_ADMIN_PASSWORD` 에 넣고 완료 메시지에 출력한다(고정 기본 비밀번호는 없다).
 **운영 배포 전에는** `SECRET_KEY` 교체, `SEED_DEFAULT_ADMIN=false`, `APP_ENV=production`, `COOKIE_SECURE=true`(HTTPS)가 필요하다 — production 에서 안전하지 않은 값이 남아 있으면 앱이 기동을 거부한다.
+HTTPS 를 끝내는 리버스 프록시 뒤라면 `TRUSTED_PROXY_HOPS=1` 도 둔다. Linux + nginx + systemd 예시는 생성 프로젝트의 [`deploy/`](skeleton/deploy/README.md) 에 있다.
+
+생성 프로젝트 루트의 `.flask-starter` 에는 생성 기준 커밋(`commit=<해시>`, 커밋하지 않은 변경이 있었으면 `-dirty`, git 없이 받았으면 `unknown`)이 기록된다.
+템플릿의 이후 수정은 자동으로 반영되지 않으므로, 이 커밋 이후의 [`CHANGELOG.md`](CHANGELOG.md) 항목을 보고 필요한 변경을 옮긴다.
 
 ## 기준이 바뀌면
 

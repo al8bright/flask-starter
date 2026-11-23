@@ -20,7 +20,7 @@
 - **DB는 항상 Alembic으로만 관리**: 런타임 `create_all`, 자동 DDL, 수동 `ALTER` 는 금지한다. 테스트의 임시 SQLite DB 만 예외다.
 - **환경 파일**: 프로젝트 루트의 `.env` 하나를 쓴다. `.env.example` 을 복사하고 실제 `.env` 는 커밋하지 않는다. 셸 환경변수(`$env:`·`export`)에 기대는 설정을 만들지 않는다.
 - **시각은 KST 단일 기준(OS 무관)**: 현재 시각은 `app.core.security.now()`(고정 오프셋 UTC+9 로 계산한 KST naive)로만 얻는다. ⛔ naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()` 처럼 OS 시각대를 따르는 호출을 쓰지 않는다. PostgreSQL `timezone=Asia/Seoul` 정책을 유지한다. OS 시각대를 서울로 바꿀 필요는 없다(Unix 는 `.env` 의 `TZ` 를 외부 라이브러리용으로 적용하고, Windows 는 적용하지 않는다).
-- **설정·의존성**: 설정은 `get_settings()`(`@lru_cache`), 요청별 DB 세션·현재 사용자·권한 데코레이터·인증 쿠키는 `app/dependencies.py` 한 파일에 둔다.
+- **설정·의존성**: 설정은 `get_settings()`(`@lru_cache`), 요청별 DB 세션·현재 사용자·권한 데코레이터·인증 쿠키는 `app/dependencies.py` 한 파일에 둔다. Flask 에만 필요한 설정 키는 공통 `config.py` 에 넣지 않고 웹 계층에 둔다(현재 `TRUSTED_PROXY_HOPS` — `app/web/proxy.py`, `ARCHITECTURE.md` §5).
 - **계층 분리**: 뷰(`app/web/`)는 HTTP 입출력·폼 해석·템플릿 선택만 한다. 도메인 로직은 `services/`, 검증은 `schemas/`(pydantic)에 둔다. 도메인 오류는 `ServiceError` 로 던지고 상태 코드는 `app/web/errors.py` 의 `STATUS_BY_CODE` 에서 정한다.
 - **공통 계층은 형제 템플릿과 같다**: `app/config.py`·`app/cli.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` 은 FastAPI 형제 템플릿과 파일 단위로 같은 코드에서 시작하였다. 프레임워크(Flask) 의존 코드를 이쪽에 넣지 않는다.
 - **인증**: 로그인마다 `auth_sessions` 행 하나를 만들고 불투명 토큰을 httpOnly·SameSite=Lax 쿠키로 보낸다. 요청마다 DB 에서 세션을 확인한다. ⛔ JWT·Flask-Login·Flask 기본 `session` 으로 인증 상태를 들고 다니지 않는다(Flask `session` 은 flash 메시지와 CSRF 토큰 전용). 흐름은 `ARCHITECTURE.md` §9.

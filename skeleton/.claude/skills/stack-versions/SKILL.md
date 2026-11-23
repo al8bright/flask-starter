@@ -38,7 +38,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 ### Flask-WTF 1.3 (CSRF 만 사용)
 - `CSRFProtect` 를 전역으로 켜고 WTForms 폼 클래스는 쓰지 않는다(폼 검증은 pydantic — `app/web/forms.py`). Flask-WTF 를 올리면 WTForms 핀도 함께 본다.
 - `WTF_CSRF_TIME_LIMIT=None` — 토큰은 시간 만료 없이 Flask 서명 쿠키(`__PROJECT_SNAKE___flash`) 수명을 따른다. 로그인 시 `session.clear()` 로 새 토큰을 받는다.
-- `WTF_CSRF_SSL_STRICT` 는 `COOKIE_SECURE` 와 같다 — HTTPS 에서는 `Referer` 가 같은 호스트여야 한다. 프록시 뒤라면 `Host`·`X-Forwarded-*` 가 제대로 전달되는지 확인한다.
+- `WTF_CSRF_SSL_STRICT` 는 `COOKIE_SECURE` 와 같다 — HTTPS 에서는 `Referer` 가 같은 호스트여야 한다. 이 검사는 `request.is_secure` 일 때만 돌므로, 프록시 뒤라면 `X-Forwarded-*` 가 전달되고 `TRUSTED_PROXY_HOPS` 가 프록시 단계 수여야 한다(werkzeug `ProxyFix` — `app/web/proxy.py`). Flask-WTF·Werkzeug 를 올리면 `tests/test_startup.py` 의 프록시 테스트로 확인한다.
 - htmx 요청은 `X-CSRFToken` 헤더로 토큰을 보낸다(`base.html` 의 `hx-headers`). fetch 로 POST 하는 편집기 업로드(`app/static/js/editor/upload.js`)도 `<meta name="csrf-token">` 값을 같은 헤더로 보낸다. 헤더 이름을 바꾸면 `WTF_CSRF_HEADERS`·`base.html`·`upload.js` 를 함께 수정한다.
 
 ### htmx 2 (벤더링)

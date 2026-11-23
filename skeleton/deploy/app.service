@@ -1,0 +1,26 @@
+# systemd 서비스 — gunicorn 으로 앱 팩토리를 띄운다(127.0.0.1:8000, 앞단은 nginx — deploy/nginx.conf).
+# 설치: sudo cp deploy/app.service /etc/systemd/system/__PROJECT_SNAKE__.service && sudo systemctl daemon-reload
+#       sudo systemctl enable --now __PROJECT_SNAKE__
+# User·Group 은 코드 폴더(/srv/__PROJECT_SNAKE__)를 소유한 배포 계정으로 바꾼다(예시는 deploy).
+# 설정은 프로젝트 루트 .env 하나에서 읽는다(app/config.py) — 여기에 비밀값을 두지 않는다.
+# 워커 수·타임아웃은 출발점이다(워커는 보통 CPU 코어 수 × 2 + 1 이하) — 서버 사양에 맞게 정한다.
+[Unit]
+Description=__PROJECT_NAME__ (gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=deploy
+Group=deploy
+WorkingDirectory=/srv/__PROJECT_SNAKE__
+ExecStart=/srv/__PROJECT_SNAKE__/.venv/bin/gunicorn "app.main:create_app()" \
+    --bind 127.0.0.1:8000 --workers 3 --timeout 60 --graceful-timeout 30 \
+    --access-logfile - --error-logfile -
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

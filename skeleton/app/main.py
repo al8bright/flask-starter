@@ -32,6 +32,7 @@ from app.core import storage
 from app.core.logging import configure_logging
 from app.web import register_blueprints
 from app.web.errors import register_error_handlers
+from app.web.proxy import apply_proxy_fix
 from app.web.security_headers import register_security_headers
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,8 @@ def create_app(*, session_factory: sessionmaker[Session] | None = None) -> Flask
         WTF_CSRF_SSL_STRICT=settings.cookie_secure,
         TEMPLATES_AUTO_RELOAD=settings.app_env == "development",
     )
+    # 앞단 프록시(nginx)가 HTTPS 를 끝낼 때 원래 요청의 scheme·host·IP 를 복원한다(app/web/proxy.py).
+    apply_proxy_fix(flask_app, cookie_secure=settings.cookie_secure)
     flask_app.jinja_env.globals["project_name"] = PROJECT_NAME
     flask_app.jinja_env.globals["csrf_field"] = csrf_field
 

@@ -47,8 +47,8 @@
 ### 배포 전환
 
 - [ ] **배포 전 체크리스트**: `ARCHITECTURE.md` §21 「배포 전 체크리스트」를 모두 확인한다.
-- [ ] **WSGI 서버·프록시**: `waitress-serve --call app.main:create_app` 또는 `gunicorn "app.main:create_app()"` 앞에 HTTPS 프록시를 둔다.
-      CSS 는 배포 전에 `scripts/tailwind.*`(최소화 빌드)로 만든다.
+- [ ] **WSGI 서버·프록시**: `waitress-serve --call app.main:create_app` 또는 `gunicorn "app.main:create_app()"` 앞에 HTTPS 프록시를 두고 `.env` 에 `TRUSTED_PROXY_HOPS` 를 프록시 단계 수로 둔다.
+      Linux + nginx + systemd 예시는 `deploy/`(README·서비스·nginx·갱신 배포 스크립트)다. CSS 는 배포 전에 `scripts/tailwind.*`(최소화 빌드)로 만든다.
 - [ ] **DB 운영 절차**: 배포 시 `alembic upgrade head` 실행 시점·롤백 계획, 백업·복구 주기.
 
 ### 관측·유지보수

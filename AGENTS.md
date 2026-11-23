@@ -88,7 +88,7 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 - 검증을 마치면 `git status --short --ignored` 로 저장소 안에 새 산출물이 없는지 확인한다(작업 전부터 있던 무시 파일은 제외).
 - DB 가 바뀌면 PostgreSQL 상대로 `alembic upgrade head` → `alembic check` → `alembic downgrade base` → `alembic upgrade head` 를 실행한다
   (Docker 예: `docker run --rm -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:16` + 임시 프로젝트 `.env` 의 `DATABASE_URL` 수정).
-- `.ps1` 을 고치면 `powershell -NoProfile -ExecutionPolicy Bypass -File .\.github\scripts\check-ps1-syntax.ps1`(Windows PowerShell 5.1 파싱 + PS7 전용 토큰 검사)을, `.sh` 를 고치면 `bash -n` 과 ShellCheck(`shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh`)를 실행한다. ShellCheck 가 없으면 스크래치 venv 에 `pip install shellcheck-py` 로 받는다. 스캐폴드는 두 판 모두 실제로 실행해 결과물이 같은지(비밀값 제외) 비교한다.
+- `.ps1` 을 고치면 `powershell -NoProfile -ExecutionPolicy Bypass -File .\.github\scripts\check-ps1-syntax.ps1`(Windows PowerShell 5.1 파싱 + PS7 전용 토큰 검사)을, `.sh` 를 고치면 `bash -n` 과 ShellCheck(`shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh skeleton/deploy/deploy.sh`)를 실행한다. 새 `.sh` 는 실행 권한(`git add --chmod=+x`)으로 기록한다. ShellCheck 가 없으면 스크래치 venv 에 `pip install shellcheck-py` 로 받는다. 스캐폴드는 두 판 모두 실제로 실행해 결과물이 같은지(비밀값 제외) 비교한다.
 - `tools/` 를 고치면 `python -B -m unittest discover -s tools` 를 실행한다(표준 라이브러리만 쓴다).
 - 실행하지 못한 검증은 생략하지 않고 **미검증**으로 명시한다(사유 포함 — README 검증 상태·CHANGELOG·보고). 통과한 것처럼 서술하지 않는다.
 
@@ -106,7 +106,7 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 - `.ps1` 은 **UTF-8 BOM** 으로 저장한다. BOM 이 없으면 5.1 이 ANSI(한국어 Windows 는 CP949)로 읽어 한글이 깨진다.
   대상은 `scaffold.ps1`·`skeleton/scripts/bootstrap.ps1`·`skeleton/scripts/tailwind.ps1` 과 두 `check-ps1-syntax.ps1`(`.github/scripts/`·`skeleton/.github/scripts/`, 같은 내용으로 유지)이며, 편집 도구가 BOM 을 지우지 않았는지 커밋 전에 확인한다.
 - 줄바꿈은 `.gitattributes` 가 강제한다 — `.sh` 는 LF(CRLF 면 셰뱅이 깨진다), `.ps1` 은 CRLF. 루트와 `skeleton/` 의 `.gitattributes` 를 함께 유지한다.
-- `scaffold.ps1` ↔ `scaffold.sh`, `bootstrap.ps1` ↔ `bootstrap.sh`, `tailwind.ps1` ↔ `tailwind.sh` 는 한쪽을 고치면 다른 쪽도 같은 변경에서 고친다. 옵션 이름은 각 셸 관례를 따른다(`-SkipDb` ↔ `--skip-db`).
+- `scaffold.ps1` ↔ `scaffold.sh`, `bootstrap.ps1` ↔ `bootstrap.sh`, `tailwind.ps1` ↔ `tailwind.sh` 는 한쪽을 고치면 다른 쪽도 같은 변경에서 고친다(`skeleton/deploy/deploy.sh` 는 Linux 서버 전용이라 짝이 없다). 옵션 이름은 각 셸 관례를 따른다(`-SkipDb` ↔ `--skip-db`).
 - 생성되는 `.env` 의 키 집합은 `skeleton/.env.example` 과 같아야 한다. 키를 추가·삭제하면 두 스캐폴드 스크립트의 `.env` 생성 블록을 같은 변경에서 고친다.
 - 골격 복사는 산출물(`.venv`·`venv`·`.ruff_cache`·`.pytest_cache`·`__pycache__`·`.tools`·`uploads`·`logs`·`app.css`·`.DS_Store`·`.env`)을 원천 제외한다. 제외 목록은 두 스크립트 맨 위 「템플릿 설정」 블록에 있으며, 바꾸면 두 스크립트를 함께 고친다.
 - 스크립트의 설치 단계(pyenv·PostgreSQL)는 기존 설치본이 하한을 충족하면 재사용한다. 형제 템플릿 스크립트에서 가져온 동작을 바꾸면 이유를 CHANGELOG 에 남긴다.

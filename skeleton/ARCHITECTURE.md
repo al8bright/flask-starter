@@ -20,7 +20,7 @@
 | 3 | **설정은 OS 무관한 프로젝트 루트 `.env` 하나로 주입**. ⛔ 개발 중 `$env:`/`export`/`set` 셸 환경변수 의존 금지. ⛔ 실제 `.env` 커밋 금지(`.env.example`만) | §5, §17 |
 | 4 | **시각은 KST 단일 기준 — OS·프로세스 시각대와 무관** — 저장·비교 기준은 KST naive(`now()` = 고정 오프셋 UTC+9 로 계산한 naive 값), PostgreSQL `connect_args`에 `timezone=Asia/Seoul`. ⛔ OS 시각대를 따르는 호출(naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()`) 금지 — `now()`·`KST` 를 쓴다. ⛔ UTC 저장·aware 시각 비교 금지(외부 연동 값의 경계 변환과 표시용 `ZoneInfo` 변환은 허용) | §10, §7 |
 | 5 | **화면은 블루프린트, JSON 은 `/api/v1`** — 화면(`/`·`/login`·`/admin`)은 HTML 을 렌더링하고, `/api/v1` 아래에는 헬스 체크·첨부 다운로드만 둔다. 예외: 편집기 이미지 업로드 `POST /admin/editor/images` 는 Accept 가 JSON 을 선호할 때 JSON 으로 답한다. 블루프린트 등록은 `app/web/__init__.py` 한 곳 | §4, §13 |
-| 6 | **설정 접근은 `get_settings()` + `@lru_cache`** — ⛔ 모듈 전역 `settings` 싱글톤 금지 | §5 |
+| 6 | **설정 접근은 `get_settings()` + `@lru_cache`** — ⛔ 모듈 전역 `settings` 싱글톤 금지. Flask 전용 키는 공통 `config.py` 밖 웹 계층에 둔다(`app/web/proxy.py`) | §5 |
 | 7 | **공통 의존성은 `app/dependencies.py` 단일 파일** (`get_db`, `current_user`, `login_required`, `admin_required`, 인증 쿠키) | §6 |
 | 8 | **계층 분리** — 뷰(`app/web/`)는 HTTP 입출력·폼 해석·템플릿 선택만, 도메인 로직은 `services/`, 검증은 `schemas/`(pydantic). 도메인 오류는 `ServiceError` + `app/web/errors.py` 의 `STATUS_BY_CODE` | §4, §8 |
 | 9 | **htmx 는 선택적 보강** — 모든 화면은 htmx 없이 일반 링크·폼으로 동작한다. `HX-Request` 분기는 `app/web/htmx.py` 헬퍼로만 한다 | §13 |
@@ -91,10 +91,12 @@
 ├── .tools/                  # Tailwind CLI 바이너리(내려받기), .gitignore 대상
 ├── .github/                 # CI(workflows/ci.yml), PS 5.1 구문 검사, PR 템플릿
 ├── .claude/skills/          # 작업별 AI 스킬
+├── deploy/                  # 운영 배포 예시 — systemd·nginx·deploy.sh (deploy/README.md)
 ├── docs/                    # 프로젝트 고유 문서 (PRD·유저 플로우·기획서·<연동>-가이드 등)
 ├── requirements.txt · pyproject.toml(ruff) · pytest.ini
 ├── .env.example             # 키 목록 — 복사한 .env 는 커밋하지 않는다
 ├── .python-version
+├── .flask-starter          # 이 프로젝트를 생성한 flask-starter 커밋(스캐폴드가 기록 — README 「템플릿 수정 반영」)
 ├── AGENTS.md                # AI 에이전트 공통 지침 (CLAUDE.md 가 @import)
 ├── CLAUDE.md                # Claude Code 진입점
 ├── ARCHITECTURE.md          # 본 가이드 — 벗어난 결정/사유도 여기 기록
@@ -123,7 +125,7 @@ app/
 ├── dependencies.py         # get_db, current_user, login_required, admin_required, 인증 쿠키  ★단일 파일 (§6)
 ├── web/                    # 얇은 HTTP 계층 (Flask 전용)
 │   ├── __init__.py         # register_blueprints — 블루프린트 등록 한 곳
-│   ├── public.py           # /  /notices  /notices/<id>
+│   ├── public.py           # /  /notices  /notices/<id>  /favicon.ico  /robots.txt
 │   ├── auth.py             # /login (GET·POST)  /logout (POST)
 │   ├── admin/              # /admin/* — 블루프린트 before_request 로 전체 관리자 전용
 │   │   ├── __init__.py     #   bp + 하위 모듈 import(라우트 등록)
@@ -135,9 +137,10 @@ app/
 │   ├── htmx.py             # is_htmx, render_page_or_partial, htmx_redirect
 │   ├── forms.py            # parse_form(pydantic), checkbox, optional_*
 │   ├── pagination.py       # page_arg, page_links
+│   ├── proxy.py            # 리버스 프록시 신뢰(TRUSTED_PROXY_HOPS → ProxyFix) — 웹 계층 전용 설정 (§5)
 │   └── security_headers.py # CSP·nosniff·HSTS·Cache-Control
 ├── templates/              # base.html · public/ · auth/ · admin/ · errors/ · partials/
-└── static/                 # css/input.css(→ app.css 빌드) · js/htmx.min.js · js/app.js · js/editor/(본문 편집기 ES 모듈)
+└── static/                 # css/input.css(→ app.css 빌드) · js/htmx.min.js · js/app.js · js/editor/(본문 편집기 ES 모듈) · img/(아이콘)
 ```
 
 ### 계층 규칙 (MUST)
@@ -163,6 +166,7 @@ def create_app(*, session_factory=None) -> Flask:
         MAX_CONTENT_LENGTH=..., MAX_FORM_MEMORY_SIZE=...,  # 요청 본문·폼 필드 상한 (§8)
         WTF_CSRF_TIME_LIMIT=None, WTF_CSRF_SSL_STRICT=settings.cookie_secure,
     )
+    apply_proxy_fix(flask_app, cookie_secure=...)  # TRUSTED_PROXY_HOPS — 프록시 뒤 scheme·host·IP 복원 (§5, §14)
     csrf.init_app(flask_app)                       # 전역 CSRF (§14)
     dependencies.init_app(flask_app, session_factory)
     register_security_headers(flask_app)           # §9
@@ -228,6 +232,9 @@ def get_settings() -> Settings:
 - **접근은 항상 `get_settings()` 함수로** (모듈 전역 `settings` 싱글톤 금지). → 테스트에서 `get_settings.cache_clear()`로 환경을 재설정할 수 있어야 한다.
 - 공통 `Settings` 에는 형제 FastAPI 템플릿만 쓰는 필드(`access_token_expire_minutes`·`refresh_token_transport`·`cors_origins`·`frontend_url`·`backend_public_url`)도 있다. 이 템플릿은 읽지 않으며 `.env.example` 에도 두지 않는다 — 공통 파일을 고치지 않기 위해 그대로 둔다.
 - 환경변수명이 필드명과 다르면 `Field(validation_alias=...)`로 명시한다.
+- **웹 계층 전용 설정**: Flask 에만 필요한 키는 공통 `config.py` 에 넣지 않는다(공통 파일을 고치지 않는다). 현재 `TRUSTED_PROXY_HOPS` 하나이며,
+  `app/web/proxy.py` 의 `ProxySettings`(같은 `ENV_FILE`, `extra="ignore"`)가 `create_app()` 안에서 읽는다 — 모듈 전역에서 읽지 않으므로 테스트의 환경변수 변경이 그대로 반영된다.
+  범위(0~3)를 벗어나면 기동을 거부한다. 새 웹 전용 키도 같은 방식으로 두고 `.env.example`·두 스캐폴드의 `.env` 생성 블록·§17 표에 함께 추가한다.
 
 ### 설정 주입은 항상 루트 `.env` — OS 독립 (MUST)
 
@@ -323,6 +330,7 @@ class Order(Base):
 - 함수형 서비스(`def create_order(db, user, data)`)를 기본으로 한다.
 - 실패는 `ServiceError(code, message)` **도메인 예외**로 던진다. 뷰에서 `try/except` 로 직접 HTTP 로 바꾸지 않는다 — 예외는 폼을 다시 그려야 하는 경우(예: 본문이 비어 있음 `empty_body`)와 로그인 화면(`invalid_credentials` 401·`too_many_attempts` 429)뿐이다.
 - N+1 방지: 조회 시 `selectinload` 등 명시적 로딩 옵션.
+- **외부 HTTP 호출**(다른 서비스 API 조회 등)은 서비스에서 서버가 한다 — 브라우저가 호출하면 CSP `connect-src` 를 넓혀야 한다. 짧은 타임아웃(수 초)을 두고, 결과를 캐시해 요청마다 호출하지 않으며, 실패하면 직전 값이나 빈 값으로 화면을 그린다(외부 장애가 화면 오류가 되지 않게). 실패 직후에는 일정 시간 다시 호출하지 않아 외부 연결이 막힌 서버에서 요청마다 타임아웃을 기다리지 않게 한다. 대상 주소를 설정값으로 받으면 형식을 검증해 경로를 벗어나지 못하게 한다. 테스트는 외부 네트워크에 기대지 않는다 — `conftest.py` 에서 호출을 끄고 동작은 대역으로 검사한다.
 - `ServiceError(code)`(와 저장소의 `StorageError`)는 `app/web/errors.py` 의 전역 핸들러가 `STATUS_BY_CODE` 표로 HTTP 상태를 정한다(`not_found` 404, `self_modification`·`last_admin`·`too_many_attachments` 409, `file_too_large` 413, 검증류 422, **표에 없으면 400**). 표는 형제 템플릿의 `app/api/errors.py` 와 같은 값이다. **새 코드를 만들면 `STATUS_BY_CODE` 에 등록한다** — 등록을 잊으면 조용히 400 이 된다.
 - 오류 응답 형식은 요청에 따라 다르다: `/api/v1/*` 와 Accept 가 JSON 을 선호하는 요청(`app/web/accept.py` 의 `wants_json`)은 JSON `{"detail", "code"}`, htmx 요청은 `partials/alert.html` 을 `HX-Retarget: #alerts`·`HX-Reswap: innerHTML` 로, 그 밖은 `errors/error.html` 전체 페이지. 처리되지 않은 예외는 원인을 서버 로그에만 남기고 500 화면을 낸다.
 
@@ -432,6 +440,7 @@ class Order(Base):
 - **CSP**: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`. 공지 본문의 외부 이미지 허용(`img-src https:`)과 YouTube embed(`frame-src`)는 정화 허용 목록(§8)과 한 쌍이다. `img-src blob:` 은 편집기가 업로드 중 미리보기(`URL.createObjectURL`)에 쓴다 — 저장 HTML 에는 `blob:` 이 남지 않는다(직렬화 때 업로드 중 자리표시를 제거한다). 이 CSP 가 htmx 사용 방식(§13)을 제한한다.
 - HSTS(`max-age=31536000`)는 `COOKIE_SECURE=true` 이거나 `APP_ENV=production` 일 때만 보낸다.
 - HTML 응답은 `Cache-Control: private, no-store` 가 기본이다(로그인 상태에 따라 내용이 달라진다). `/admin*`·`/login`·`/logout` 은 항상 `private, no-store`. 공개 업로드 파일은 길게 캐시한다(§8).
+- 로그인·관리자·API(`auth`·`admin`·`api` 블루프린트) 응답에는 `X-Robots-Tag: noindex` 를 붙인다. ⛔ 같은 목적으로 `robots.txt` 에 경로를 나열하지 않는다(§13).
 
 ---
 
@@ -474,7 +483,7 @@ class Order(Base):
 - DB 는 테스트마다 **임시 SQLite 파일**(`tmp_path`)이고 `Base.metadata.create_all/drop_all` 한다. in-memory(StaticPool)는 연결 하나를 모든 세션이 공유해 트랜잭션 경계가 운영과 달라지므로 쓰지 않는다.
 - 앱은 `create_app(session_factory=...)` 로 테스트 DB 에 붙인다. 요청은 운영과 같이 **요청마다 새 세션**을 열고 닫는다 — 테스트의 `db_session` 을 요청에 넘기면 커밋하지 않은 변경도 보여 `commit()` 누락을 잡지 못한다. 요청 뒤에는 `db_session` 캐시를 만료해 단언이 커밋된 값을 읽는다.
 - bcrypt 비용은 `BCRYPT_ROUNDS=4` 로 낮춘다(운영 12).
-- `conftest.py`는 앱 import 전에 테스트용 환경변수를 **대입**한다(`APP_ENV=test`, `SEED_DEFAULT_ADMIN=false`, `COOKIE_SECURE=false`, `BCRYPT_ROUNDS=4` 등) — 개발자의 `.env` 가 테스트 결과를 흔들지 않게 한다.
+- `conftest.py`는 앱 import 전에 테스트용 환경변수를 **대입**한다(`APP_ENV=test`, `SEED_DEFAULT_ADMIN=false`, `COOKIE_SECURE=false`, `TRUSTED_PROXY_HOPS=0`, `BCRYPT_ROUNDS=4` 등) — 개발자의 `.env` 가 테스트 결과를 흔들지 않게 한다.
 - **CSRF 는 테스트에서도 켜 둔다.** 폼 POST 는 `post_form(client, url, data, htmx=False)` 로 토큰을 실어 보낸다(`htmx=True` 면 `HX-Request` 헤더도 붙인다). 토큰 없는 POST 가 거부되는지도 테스트한다.
 - `conftest.py`의 공통 픽스처:
   - `_clear_settings_cache` (autouse): `get_settings.cache_clear()`.
@@ -482,7 +491,7 @@ class Order(Base):
   - `db_session_factory` · `db_session`: 테스트 엔진에 바인딩된 세션 팩토리와 테스트별 세션.
   - `flask_app` · `client`: 테스트 DB 에 붙인 앱과 `test_client`.
   - `admin_user` · `normal_user`: 관리자·일반 사용자 행. `admin_client` · `user_client`: 그 계정으로 **실제 로그인**한 클라이언트.
-- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py`, `test_editor.py`(편집기 업로드 JSON·정화 후 출력 계약·모듈 import·CSP 정적 점검) 다.
+- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py`, `test_editor.py`(편집기 업로드 JSON·정화 후 출력 계약·모듈 import), `test_static_js.py`(`app/static/js/` 아래 모든 스크립트의 CSP 위반 코드 정적 점검 — 벤더링한 htmx 제외) 다. `test_startup.py` 는 프록시 신뢰(`TRUSTED_PROXY_HOPS`)도 검사한다.
 - 화면 테스트는 상태 코드와 `get_data(as_text=True)` 안의 핵심 문구로 확인한다. htmx 경로는 partial 만 왔는지(전체 레이아웃 없음), 오류면 `HX-Retarget: #alerts` 인지 확인한다. 브라우저 동작(htmx 교체·CSP 위반 없음)은 테스트로 잡히지 않으므로 개발 서버에서 확인한다.
 
 ```python
@@ -503,7 +512,7 @@ def _clear_settings_cache():
 
 | 위치 | 용도 |
 |---|---|
-| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), `<body hx-headers>`(htmx CSRF), `<meta name="csrf-token">`(fetch 용 CSRF), `htmx-config` 메타 |
+| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block head %}`(화면별 `meta description`·`canonical` 등)·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block main %}`·바닥글 — `main` 의 기본값은 가운데 5xl 폭 `<main>` 안의 `{% block content %}`, 전체 폭 띠가 필요한 화면은 `main` 을 통째로 바꾼다), `<body hx-headers>`(htmx CSRF), `<meta name="csrf-token">`(fetch 용 CSRF), `htmx-config` 메타, 아이콘 링크 |
 | `templates/admin/_layout.html` | 관리자 화면 골격 — `shell` 을 왼쪽 메뉴(레일)+본문으로 바꾼다. 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다 |
 | `templates/partials/alerts_region.html` | `#alerts`(flash·htmx 오류 알림) 영역 — 골격마다 한 번만 넣는다 |
 | `templates/<영역>/<화면>.html` | 전체 페이지(`public/`·`auth/`·`admin/`·`errors/`) |
@@ -511,6 +520,8 @@ def _clear_settings_cache():
 
 - 전역: `project_name`, `current_user`(비로그인이면 `None`), `csrf_field()`, `csrf_token()`. 폼 오류는 `partials/fields.html` 의 `field_error(errors, name)`, 폼 전체 오류는 `errors._form`.
 - Jinja 자동 이스케이프를 끄지 않는다. `|safe` 는 서버가 정화한 공지 본문(§8)에만 쓴다.
+- 아이콘: `static/img/favicon.svg`·`favicon.ico` 는 자리표시 그림이다 — 프로젝트 아이콘으로 바꿀 때 두 파일을 같은 그림으로 바꾼다. `/favicon.ico` 는 브라우저가 링크와 무관하게 요청하므로 `public.favicon` 이 같은 파일을 준다.
+- 검색엔진: 로그인·관리자·API 응답은 `X-Robots-Tag: noindex` 헤더로 색인에서 뺀다(`app/web/security_headers.py` 의 `NOINDEX_BLUEPRINTS`). `/robots.txt` 는 모두 허용이다 — ⛔ 관리자·로그인 경로를 `Disallow` 로 나열하지 않는다(누구나 읽는 파일이라 공격 단서가 된다). 공개 화면을 색인시키려면 `{% block head %}` 에 화면별 `meta description` 을 둔다.
 
 ### 요청·응답 흐름
 
@@ -538,7 +549,7 @@ def _clear_settings_cache():
 - 스크립트는 `app/static/js/` 의 파일만 쓴다. 전역 스크립트는 `base.html` 에서 `defer` 로 불러온다 — `htmx.min.js`(벤더링)와 `app.js`(`data-confirm="<문구>"` 폼의 제출 전 확인).
 - 화면 하나에만 필요한 스크립트는 `{% block scripts %}` 에 `<script type="module">` 로 불러온다. 공지 작성·수정 화면의 편집기(`js/editor/editor.js` 진입점)가 그렇다 — `textarea[data-rich-editor]` 를 찾아 붙이고(`data-upload-url`·`data-max-image-mb`), JS 가 없으면 `textarea` 그대로 동작한다(`[data-editor-fallback]` 안내는 편집기가 붙을 때 숨긴다).
 - 편집기 모듈은 빌드 없이 브라우저가 직접 읽는 ES 모듈이다. `import` 는 `./<파일>.js` 상대 경로만 쓰고 모듈 사이 순환을 만들지 않는다. 형제 템플릿 편집기와 파일 단위로 대응하므로 대응 파일이 있으면 첫 줄에 명시한다(`dom.js` 처럼 이 템플릿에만 있는 파일은 용도만 명시한다).
-- ⛔ 인라인 `<script>`·`on*=` 속성·`javascript:` URL·외부 CDN 스크립트(CSP §9). 외부 라이브러리가 필요하면 벤더링하고 버전·무결성을 `scripts/versions.env` 에 기록한다([`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)).
+- ⛔ 인라인 `<script>`·`on*=` 속성·`javascript:` URL·외부 CDN 스크립트(CSP §9). `app/static/js/` 아래 스크립트는 `tests/test_static_js.py` 가 CSP 를 깨는 코드(`eval`·`new Function`·`style=` 등)를 자동으로 검사한다 — 새 스크립트를 추가해도 테스트를 따로 만들지 않는다. 외부 라이브러리가 필요하면 벤더링하고 버전·무결성을 `scripts/versions.env` 에 기록한다([`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)).
 - DOM 조작은 브라우저 표준 API(`querySelector`·`closest`·`classList`·`addEventListener` 위임·`fetch`)로 한다. ⛔ jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다 — 화면 갱신은 htmx 가, 나머지는 표준 API 가 맡는다. HTML 문자열을 `innerHTML` 로 넣을 때 `style=`·`<script>` 가 들어가지 않게 한다(CSP 위반). 크기·위치는 `el.style.setProperty` 같은 CSSOM 으로 정한다(CSP 가 차단하지 않는다). Chrome 은 `template`·`DOMParser` 로 파싱만 해도 `style`·`on*` 속성마다 위반을 보고하므로, 외부 HTML(붙여넣기)은 편집기 `parseFragment` 처럼 파싱 전에 그 속성을 제거한다.
 - 되돌릴 수 없는 폼(삭제·세션 폐기)에는 `data-confirm` 을 붙인다.
 
@@ -560,7 +571,7 @@ def _clear_settings_cache():
 - **권한 경계는 서버**다. 템플릿이 메뉴를 숨기는 것(`current_user.role`)은 화면 노출용이고, 실제 차단은 `login_required`·`admin_required`·관리자 블루프린트의 `before_request` 다.
 - **CSRF**: `CSRFProtect` 가 모든 POST 를 검사한다(폼 필드 `csrf_token` 또는 헤더 `X-CSRFToken`). 토큰은 Flask 서명 쿠키(`<snake>_flash`)에 묶이고 시간 만료가 없다(`WTF_CSRF_TIME_LIMIT=None` — 긴 글 작성 중 저장 실패 방지). 로그인 성공 시 `session.clear()` 로 새 토큰을 받는다. HTTPS 에서는 `WTF_CSRF_SSL_STRICT` 로 `Referer` 가 같은 호스트여야 한다. 실패는 400 + 안내 문구(htmx 면 `#alerts`, Accept JSON 선호면 JSON — §8 오류 응답 형식과 같다).
 - `SameSite=Lax` 쿠키는 교차 사이트 POST 에 실리지 않는다 — CSRF 토큰과 함께 이중 방어다. ⛔ 인증 쿠키를 `SameSite=None` 으로 바꾸지 않는다.
-- **배포**: 앱·정적 파일·업로드를 **같은 오리진**에서 서빙한다(리버스 프록시가 전부 Flask 로 넘기거나 `/static`·`/uploads/public` 만 프록시가 직접 서빙). HTTPS 종단 뒤에 두고 `COOKIE_SECURE=true`. 프록시 뒤라면 `Host`·`X-Forwarded-Proto` 가 올바르게 전달되는지 확인한다(CSRF `Referer` 검사·redirect URL 이 이것에 의존한다).
+- **배포**: 앱·정적 파일·업로드를 **같은 오리진**에서 서빙한다(리버스 프록시가 전부 Flask 로 넘기거나 `/static`·`/uploads/public` 만 프록시가 직접 서빙). HTTPS 종단 뒤에 두고 `COOKIE_SECURE=true`. 프록시 뒤라면 프록시가 `Host`·`X-Forwarded-Proto`·`X-Forwarded-For` 를 전달하고 `.env` 에 `TRUSTED_PROXY_HOPS=1`(프록시 단계 수)을 둔다. Flask-WTF 의 `Referer` 엄격 검사는 `request.is_secure` 일 때만 동작하므로, 이 값이 0 이면 HTTPS 를 프록시가 끝낸 요청에서 검사가 꺼진다(`COOKIE_SECURE=true` 인데 0 이면 기동 시 경고). ⛔ 프록시 없이 앱을 바로 노출하면서 0 이 아닌 값을 두지 않는다 — 클라이언트가 헤더를 위조할 수 있다. 예시 구성은 `deploy/`(nginx·systemd)다.
 
 ---
 
@@ -608,6 +619,7 @@ def _clear_settings_cache():
 | `COOKIE_SECURE` | 인증·flash 쿠키의 `Secure` 속성과 HSTS·CSRF 엄격 검사. 로컬 `false`, 운영(HTTPS) `true` 필수(아니면 기동 거부) |
 | `UPLOAD_DIR` | 업로드 저장 위치(기본 `uploads`, 상대 경로는 프로젝트 루트 기준). `public/` 만 `/uploads/public` 으로 서빙 (§8) |
 | `PUBLIC_FILES_BASE_URL` | 공개 파일·첨부 다운로드 URL 접두사. 같은 오리진이면 비운다 |
+| `TRUSTED_PROXY_HOPS` | 앞단 리버스 프록시 단계 수(기본 0, 0~3). HTTPS 를 끝내는 nginx 한 겹 뒤면 1 — `X-Forwarded-Proto`·`Host`·`For` 를 믿어 `request.is_secure` 가 참이 되고 CSRF 의 HTTPS `Referer` 검사가 동작한다. 앱을 바로 노출할 때 0 이 아니면 헤더 위조를 허용한다. 웹 계층 전용 설정(`app/web/proxy.py`, §5) |
 | `MAX_IMAGE_UPLOAD_MB`, `MAX_ATTACHMENT_UPLOAD_MB` | 업로드 크기 상한(MB, 기본 5 / 20) — 초과 시 413. 요청 본문 상한(`MAX_CONTENT_LENGTH`)도 이 값에서 정해진다 |
 | `TZ` | Unix 프로세스 시각대(기본 `Asia/Seoul`, 외부 라이브러리용). 앱 시각(`now()`)·로그는 이 값·OS 와 무관하게 KST 다. Windows 에서는 프로세스에 적용하지 않는다 (§10) |
 | `SEED_DEFAULT_ADMIN`, `DEFAULT_ADMIN_PASSWORD` | 기동 시 기본 관리자(admin) 시드 여부·초기 비밀번호. **코드 기본값은 꺼짐** — `.env.example` 은 켠 상태에 비밀번호를 비워 두고, 스캐폴드가 개발용 `.env` 에 무작위 비밀번호를 채운다(§9, §21) |
@@ -671,13 +683,14 @@ skeleton 은 개발 편의를 위해 기본 관리자 계정(`admin`)을 자동 
 - [ ] `APP_ENV=production` 설정 — 기본·짧은 `SECRET_KEY`, 관리자 시드, `COOKIE_SECURE=false`, 낮은 `BCRYPT_ROUNDS` 중 하나라도 남아 있으면 기동이 실패한다 (§9, §17)
 - [ ] 기본 관리자 시드 정리 — 운영 `.env` 에서 `SEED_DEFAULT_ADMIN=false`. 운영 관리자는 `python -m app.cli create-admin --username <이름>` 으로 만들고, 개발 중 쓴 계정 비밀번호는 `python -m app.cli set-password` 로 바꾼다 (§9)
 - [ ] 개발 서버(`flask run`) 대신 WSGI 서버로 띄운다 — `waitress-serve --call app.main:create_app` 또는 `gunicorn "app.main:create_app()"` (§4)
-- [ ] HTTPS 종단 뒤에 배치하고 `COOKIE_SECURE=true` — 인증 쿠키가 평문 HTTP 로 나가지 않게 한다. 프록시가 `Host`·`X-Forwarded-Proto` 를 전달하는지 확인한다 (§9, §14)
-- [ ] 앞단 프록시(또는 WAF)에 로그인 경로의 IP 단위 요청 제한과 업로드 본문 상한을 둔다 — 앱의 로그인 잠금은 계정 단위다 (§8, §9)
+- [ ] HTTPS 종단 뒤에 배치하고 `COOKIE_SECURE=true` — 인증 쿠키가 평문 HTTP 로 나가지 않게 한다. 프록시가 `Host`·`X-Forwarded-Proto`·`X-Forwarded-For` 를 전달하는지 확인하고 `TRUSTED_PROXY_HOPS=1` 을 둔다 — 기동 로그에 `TRUSTED_PROXY_HOPS` 경고가 없어야 한다 (§9, §14, §17)
+- [ ] 앞단 프록시(또는 WAF)에 로그인 경로의 IP 단위 요청 제한과 업로드 본문 상한을 둔다 — 앱의 로그인 잠금은 계정 단위다 (§8, §9). 예시는 `deploy/nginx.conf`
 - [ ] CSS 를 빌드한 `app.css` 를 배포 산출물에 포함한다 (§15)
 - [ ] 로그 수집 대상에 `app.audit` 를 포함한다 (`LOG_LEVEL=INFO` 이상, §9)
 - [ ] 운영 DB 의 KST 확인 — 연결 시각대(`SHOW timezone` = `Asia/Seoul`)와 DB 기본값(`func.now()`)이 KST 인지 본다. 앱 시각·로그는 OS 시각대와 무관하게 KST 이므로 서버 OS 시각대는 바꾸지 않아도 된다 (§7, §10)
 - [ ] 운영 DB 에 `alembic upgrade head` 를 적용하는 시점과 롤백 계획을 정한다 (§11)
 - [ ] `UPLOAD_DIR` 을 영속 저장소에 둔다 (§8)
+- [ ] 기본 아이콘(`static/img/favicon.*`)을 프로젝트 아이콘으로 바꾸고, 공개 화면에 `meta description` 을 둔다 (§13)
 
 ---
 

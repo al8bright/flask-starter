@@ -107,3 +107,42 @@ def test_method_not_allowed_keeps_allow_header(client):
     res = client.put("/notices")
     assert res.status_code == 405
     assert "GET" in res.headers["Allow"]
+
+
+# ---------------------------------------------------------------------------
+# 아이콘·검색엔진 기본값
+
+def test_favicon_is_served(client):
+    """브라우저가 링크와 무관하게 요청하는 /favicon.ico 가 404 가 아니다."""
+    res = client.get("/favicon.ico")
+    assert res.status_code == 200
+    assert res.mimetype in {"image/vnd.microsoft.icon", "image/x-icon"}
+    assert res.data[:4] == b"\x00\x00\x01\x00"  # ICO 머리
+
+
+def test_pages_link_icons(client):
+    html = client.get("/").get_data(as_text=True)
+    assert 'rel="icon" href="/favicon.ico"' in html
+    assert "/static/img/favicon.svg" in html
+    assert client.get("/static/img/favicon.svg").status_code == 200
+
+
+def test_robots_txt_does_not_list_private_paths(client):
+    """robots.txt 는 누구나 읽는다 — 관리자·로그인·API 경로를 적어 공격 단서를 주지 않는다."""
+    res = client.get("/robots.txt")
+    assert res.status_code == 200 and res.mimetype == "text/plain"
+    body = res.get_data(as_text=True)
+    assert body.splitlines()[0] == "User-agent: *"
+    for path in ("/admin", "/login", "/api"):
+        assert path not in body
+
+
+def test_login_and_api_are_noindex_but_public_pages_are_not(client, notices):
+    for url in ("/login", "/api/v1/health", "/admin/"):
+        assert client.get(url).headers.get("X-Robots-Tag") == "noindex", url
+    for url in ("/", "/notices", f"/notices/{notices[0].id}"):
+        assert "X-Robots-Tag" not in client.get(url).headers, url
+
+
+def test_admin_pages_are_noindex(admin_client):
+    assert admin_client.get("/admin/").headers.get("X-Robots-Tag") == "noindex"

@@ -26,7 +26,7 @@
 
 # ---------- 템플릿 설정 ----------
 # 토큰을 치환할 파일 확장자 (대소문자 구분, scaffold.ps1 과 동일)
-TOKEN_EXTENSIONS=".py .html .css .js .md .ini .mako .example .txt .toml"
+TOKEN_EXTENSIONS=".py .html .css .js .md .ini .mako .example .txt .toml .sh .conf .service"
 APP_PORT=5000
 # 골격 복사·토큰 치환에서 제외하는 산출물 (scaffold.ps1 과 동일)
 #   .tools = 내려받은 Tailwind CLI, uploads·logs = 실행 산출물, app.css = Tailwind 빌드 결과
@@ -451,6 +451,21 @@ if ! (cd "$SKELETON_DIR" && tar cf - $_tar_ex .) | (cd "$TARGET" && tar xf -); t
 fi
 ok "복사 완료"
 
+# 생성 기준 기록 — 템플릿의 이후 수정은 생성 프로젝트에 자동으로 반영되지 않는다. 어떤 수정을 옮길지
+# flask-starter CHANGELOG 와 비교하는 기준으로 커밋을 남긴다(git 이 없거나 zip 으로 받았으면 unknown,
+# 커밋하지 않은 변경이 있으면 -dirty). 내용은 scaffold.ps1 과 같다(LF, BOM 없음).
+STARTER_REV="unknown"
+if command -v git >/dev/null 2>&1 && _rev=$(git -C "$SCRIPT_DIR" rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$_rev" ]; then
+  STARTER_REV="$_rev"
+  git -C "$SCRIPT_DIR" diff --quiet HEAD -- 2>/dev/null || STARTER_REV="$STARTER_REV-dirty"
+fi
+cat > "$TARGET/.flask-starter" <<EOF || die ".flask-starter 생성 실패 — 중단합니다"
+# 이 프로젝트를 생성한 flask-starter 커밋 — 템플릿의 이후 수정은 자동으로 반영되지 않는다.
+# 옮길 변경은 flask-starter 의 CHANGELOG.md 에서 이 커밋 이후 항목을 보고 고른다(README 「템플릿 수정 반영」).
+commit=$STARTER_REV
+EOF
+ok "생성 기준 기록: .flask-starter (commit=$STARTER_REV)"
+
 # ---------- 5. 토큰 치환 ----------
 step "토큰 치환"
 # ⛔ bash 의 ${var//…} 로 치환하지 않는다 — macOS 기본 bash 3.2 의 패턴 치환은 문자열 길이에
@@ -528,6 +543,8 @@ LOGIN_MAX_FAILURES=5
 LOGIN_LOCKOUT_MINUTES=15
 # 운영(HTTPS)에서는 true 로 바꾼다 (APP_ENV=production + false 면 기동 거부).
 COOKIE_SECURE=false
+# HTTPS 를 끝내는 리버스 프록시(nginx) 뒤에서 운영하면 1 로 바꾼다(앱을 바로 노출하면 0).
+TRUSTED_PROXY_HOPS=0
 # 업로드 저장소·크기 상한 — 값은 .env.example 과 같다(설명은 그 파일 참고).
 UPLOAD_DIR=uploads
 PUBLIC_FILES_BASE_URL=

@@ -12,7 +12,7 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 | 위치 | 용도 |
 |---|---|
-| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), fetch 용 `<meta name="csrf-token">` |
+| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block head %}`(화면별 `meta description` 등)·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block main %}`·바닥글 — 보통은 `{% block content %}` 만 채우고, 전체 폭 띠가 필요하면 `main` 을 통째로 바꾼다), fetch 용 `<meta name="csrf-token">` |
 | `app/templates/admin/_layout.html` | 관리자 골격(왼쪽 메뉴 레일) — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다. 메뉴 항목은 이 파일의 `nav` 목록에 `(endpoint, 이름, 활성 판정 키)` 로 추가한다 — 키가 현재 endpoint 이름에 들어 있으면 활성이므로, 다른 메뉴의 endpoint 이름에 들어가지 않는 고유 문자열로 고른다 |
 | `app/templates/partials/alerts_region.html` | `#alerts`(flash·오류 알림) — 새 골격을 만들면 이것을 한 번 넣는다 |
 | `app/templates/<영역>/<화면>.html` | 전체 페이지 |
@@ -47,7 +47,7 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 ## 4. CSP 제약 (§9·§13 — 보안 헤더 `app/web/security_headers.py`)
 
-- `script-src 'self'`: ⛔ 인라인 `<script>`, `on*=` 속성, `javascript:` URL, 외부 CDN 스크립트. 스크립트가 필요하면 `app/static/js/` 에 파일로 둔다. 전역 스크립트는 `base.html` 에서 `defer` 로, 한 화면 전용은 그 템플릿의 `{% block scripts %}` 에서 `<script type="module">` 로 불러온다(예: 공지 작성 화면의 `js/editor/editor.js`). 외부 라이브러리는 벤더링하고 버전을 `scripts/versions.env` 에 기록한다([stack-versions]).
+- `script-src 'self'`: ⛔ 인라인 `<script>`, `on*=` 속성, `javascript:` URL, 외부 CDN 스크립트. 스크립트가 필요하면 `app/static/js/` 에 파일로 둔다. 전역 스크립트는 `base.html` 에서 `defer` 로, 한 화면 전용은 그 템플릿의 `{% block scripts %}` 에서 `<script type="module">` 로 불러온다(예: 공지 작성 화면의 `js/editor/editor.js`). 외부 라이브러리는 벤더링하고 버전을 `scripts/versions.env` 에 기록한다([stack-versions]). `app/static/js/` 아래 새 스크립트는 `tests/test_static_js.py` 가 CSP 위반 코드(`eval`·`style=` 등)를 자동으로 검사한다.
 - `style-src 'self'`: ⛔ `style="..."` 속성·`<style>` 블록. Tailwind 클래스를 쓴다. JS 가 크기·위치를 정해야 하면 `el.style.setProperty`(CSSOM)를 쓴다 — ⛔ `setAttribute("style", …)`·`cssText`.
 - htmx 설정(`base.html` 의 `htmx-config` 메타)은 `allowEval:false`·`includeIndicatorStyles:false` 다 — `hx-on`·`hx-vars`·`js:` 접두사는 동작하지 않는다.
 - `img-src 'self' data: blob: https:`(`blob:` 은 편집기 업로드 미리보기), `frame-src` 는 YouTube 만 허용한다. 다른 출처가 필요하면 헤더를 고치고 이유를 §22 에 남긴다.

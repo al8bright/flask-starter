@@ -110,7 +110,8 @@ flowchart LR
     Tailwind["Tailwind standalone CLI"] -. app.css 빌드 .-> Flask
 ```
 
-운영에서는 개발 서버(`flask run`) 대신 WSGI 서버로 앱 팩토리를 띄운다 — `waitress-serve --call app.main:create_app`(Windows·Linux) 또는 `gunicorn "app.main:create_app()"`(Linux). HTTPS 는 앞단 프록시가 맡는다.
+운영에서는 개발 서버(`flask run`) 대신 WSGI 서버로 앱 팩토리를 띄운다 — `waitress-serve --call app.main:create_app`(Windows·Linux) 또는 `gunicorn "app.main:create_app()"`(Linux). HTTPS 는 앞단 프록시가 맡고, `.env` 의 `TRUSTED_PROXY_HOPS` 를 프록시 단계 수(nginx 한 겹이면 1)로 둔다 — 0 이면 CSRF 의 HTTPS `Referer` 검사가 동작하지 않는다.
+Linux 한 대에 nginx + gunicorn(systemd)으로 올리는 예시와 갱신 배포 스크립트는 [`deploy/`](deploy/README.md) 에 있다.
 
 ## 화면 구성
 
@@ -198,15 +199,24 @@ flowchart LR
 |---|---|
 | `app/main.py` | 앱 팩토리 `create_app()` — 설정 검사, CSRF, 보안 헤더, 오류 처리, 블루프린트 등록, 관리자 시드 |
 | `app/dependencies.py` | 요청별 DB 세션, 현재 사용자, `login_required`·`admin_required`, 인증 쿠키 |
-| `app/web/` | 블루프린트(`public`·`auth`·`admin`·`api`·`files`)와 공용 헬퍼(`htmx`·`accept`·`forms`·`pagination`·`errors`·`security_headers`) |
+| `app/web/` | 블루프린트(`public`·`auth`·`admin`·`api`·`files`)와 공용 헬퍼(`htmx`·`accept`·`forms`·`pagination`·`errors`·`security_headers`·`proxy`) |
 | `app/templates/` | Jinja 템플릿 — `base.html`, 영역별 폴더, htmx 응답용 `partials/` |
-| `app/static/` | `css/input.css`(Tailwind 입력), `js/htmx.min.js`(벤더링), `js/app.js`, `js/editor/`(본문 편집기 ES 모듈) |
+| `app/static/` | `css/input.css`(Tailwind 입력), `js/htmx.min.js`(벤더링), `js/app.js`, `js/editor/`(본문 편집기 ES 모듈), `img/`(아이콘 — 자리표시 그림) |
 | `app/config.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` | 형제 FastAPI 템플릿과 같은 공통 계층 |
 | `scripts/` | bootstrap, Tailwind 빌드, 버전 기록(`versions.env`) |
 | `tests/` | pytest — Flask `test_client` 로 화면·API, 서비스 단위 테스트 |
 | `.github/` | GitHub Actions CI(`workflows/ci.yml`), PowerShell 5.1 구문 검사 스크립트, PR 템플릿 |
+| `deploy/` | 운영 배포 예시 — systemd 서비스, nginx 사이트, 갱신 배포 스크립트([`deploy/README.md`](deploy/README.md)) |
+| `.flask-starter` | 이 프로젝트를 생성한 flask-starter 커밋(아래 「템플릿 수정 반영」) |
 
 세부 디렉터리와 계층 규칙은 `ARCHITECTURE.md` §4·§8 을, 새 도메인 추가 절차는 [`add-domain` 스킬](.claude/skills/add-domain/SKILL.md)을 따른다.
+
+### 템플릿 수정 반영
+
+이 프로젝트는 생성 시점의 flask-starter 골격을 복사한 것이다. 이후 템플릿의 버그 수정·개선은 자동으로 반영되지 않는다.
+루트의 `.flask-starter` 에 생성 기준 커밋(`commit=`)이 있다 — flask-starter 의 `CHANGELOG.md` 에서 그 커밋 이후 항목을 보고 필요한 변경만 손으로 옮긴다.
+`-dirty` 가 붙어 있으면 템플릿에 커밋하지 않은 변경이 있는 상태에서 생성한 것이고, `unknown` 이면 git 없이 받은 템플릿에서 생성한 것이다.
+⛔ 같은 폴더에 다시 스캐폴드하지 않는다 — 골격 파일을 덮어쓴다.
 
 ## 개발 워크플로
 
@@ -281,7 +291,7 @@ CI 와 같은 검사다 — `pytest.ini` 의 `filterwarnings` 가 `DeprecationWa
 
 ## 환경 설정
 
-- 설정은 프로젝트 루트의 `.env` 하나다(스캐폴드가 생성, 키 목록과 설명은 `.env.example`). `DATABASE_URL`, `SECRET_KEY`, `APP_ENV`, 로그인 세션 수명(`REFRESH_TOKEN_EXPIRE_DAYS`), 로그인 시도 제한(`LOGIN_MAX_FAILURES`·`LOGIN_LOCKOUT_MINUTES`), 쿠키 `Secure`(`COOKIE_SECURE`), 업로드(`UPLOAD_DIR`·`MAX_*_UPLOAD_MB`), 기본 관리자 시드(`SEED_DEFAULT_ADMIN`·`DEFAULT_ADMIN_PASSWORD`)를 여기서 설정한다.
+- 설정은 프로젝트 루트의 `.env` 하나다(스캐폴드가 생성, 키 목록과 설명은 `.env.example`). `DATABASE_URL`, `SECRET_KEY`, `APP_ENV`, 로그인 세션 수명(`REFRESH_TOKEN_EXPIRE_DAYS`), 로그인 시도 제한(`LOGIN_MAX_FAILURES`·`LOGIN_LOCKOUT_MINUTES`), 쿠키 `Secure`(`COOKIE_SECURE`), 프록시 신뢰(`TRUSTED_PROXY_HOPS`), 업로드(`UPLOAD_DIR`·`MAX_*_UPLOAD_MB`), 기본 관리자 시드(`SEED_DEFAULT_ADMIN`·`DEFAULT_ADMIN_PASSWORD`)를 여기서 설정한다.
 - 실제 `.env` 파일은 커밋하지 않는다. 배포 전에는 위 기본 계정 경고와 `ARCHITECTURE.md` §21 을 다시 확인한다.
 - 시각은 OS 시각대와 무관하게 KST 다(`app.core.security.now()`·로그). 서버·개발 PC 의 OS 시각대를 바꿀 필요는 없다. Unix 에서는 `.env` 의 `TZ=Asia/Seoul` 을 외부 라이브러리용으로 프로세스에 적용한다.
 
