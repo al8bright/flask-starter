@@ -35,7 +35,7 @@ description: __PROJECT_NAME__ 의 DB 스키마를 바꿀 때(SQLAlchemy 모델 �
 - 기존 행이 있는 테이블에 NOT NULL 컬럼을 추가할 때는 `server_default` 를 주거나, nullable 로 추가 → 데이터 채움 → NOT NULL 전환의 단계로 나눈다.
 - 모든 마이그레이션은 **`downgrade()` 를 작성**하고 가능하면 되돌릴 수 있게 한다. `alembic downgrade -1` → `alembic upgrade head` 왕복으로 확인한다.
 - 마이그레이션 파일은 **반드시 커밋**한다(모델 변경과 같은 커밋).
-- 머지 시 head 가 갈라지면 `alembic merge` 로 정리.
+- 머지 시 head 가 갈라지면 `alembic merge` 로 정리한다.
 - `alembic/env.py` 는 `get_settings()` 의 DB URL + `Base.metadata`(`import app.models` 후)를 쓰고, `compare_type=True`·`compare_server_default=True` 로 타입·서버 기본값 변경도 감지한다.
 - ⛔ `alembic.ini` 는 ASCII 로 유지하고 `path_separator = os` 를 지우지 않는다([stack-versions] §3).
 

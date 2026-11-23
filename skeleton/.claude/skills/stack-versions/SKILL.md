@@ -23,7 +23,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 | Python 패키지 | `==` **정확 고정** — 재현성 우선. 동작을 좌우하는 전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함 | `requirements.txt` |
 | Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증. Node 불필요 | `versions.env` + `tailwind-sha256sums.txt` |
 | htmx | 파일 벤더링(CDN 금지 — CSP `script-src 'self'`) | `app/static/js/htmx.min.js` + `versions.env` |
-| PostgreSQL | 고정 없음 | 16+ 권장(14 는 2026-11 지원 종료) |
+| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16`) |
 
 패키지별 전체 목록은 **`README.md` 의 「기술 스택과 버전」** 절에 표로 있다.
 
@@ -39,7 +39,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 - `CSRFProtect` 를 전역으로 켜고 WTForms 폼 클래스는 쓰지 않는다(폼 검증은 pydantic — `app/web/forms.py`). Flask-WTF 를 올리면 WTForms 핀도 함께 본다.
 - `WTF_CSRF_TIME_LIMIT=None` — 토큰은 시간 만료 없이 Flask 서명 쿠키(`__PROJECT_SNAKE___flash`) 수명을 따른다. 로그인 시 `session.clear()` 로 새 토큰을 받는다.
 - `WTF_CSRF_SSL_STRICT` 는 `COOKIE_SECURE` 와 같다 — HTTPS 에서는 `Referer` 가 같은 호스트여야 한다. 프록시 뒤라면 `Host`·`X-Forwarded-*` 가 제대로 전달되는지 확인한다.
-- htmx 요청은 `X-CSRFToken` 헤더로 토큰을 보낸다(`base.html` 의 `hx-headers`). 헤더 이름을 바꾸면 `WTF_CSRF_HEADERS` 도 같이 바꾼다.
+- htmx 요청은 `X-CSRFToken` 헤더로 토큰을 보낸다(`base.html` 의 `hx-headers`). fetch 로 POST 하는 편집기 업로드(`app/static/js/editor/upload.js`)도 `<meta name="csrf-token">` 값을 같은 헤더로 보낸다. 헤더 이름을 바꾸면 `WTF_CSRF_HEADERS`·`base.html`·`upload.js` 를 함께 수정한다.
 
 ### htmx 2 (벤더링)
 - 설정은 `base.html` 의 `<meta name="htmx-config">` 다. `allowEval:false`(CSP — `hx-on`·`hx-vars`·`js:` 불가), `includeIndicatorStyles:false`(인라인 스타일 금지 — indicator 스타일은 `input.css` 의 `.htmx-request`), `historyCacheSize:0`, `responseHandling` 으로 4xx·5xx 도 swap 한다(오류 알림이 `HX-Retarget: #alerts` 로 온다).
@@ -98,12 +98,13 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 4. 모델·마이그레이션·DB 드라이버가 바뀌었으면 실제 PostgreSQL 에서 `alembic upgrade head` → `alembic check` 까지 확인한다([db-migration]).
 
 ```powershell
-# Windows (PowerShell 5.1) — py 런처로 .python-version 과 같은 버전을 지정한다
-py -3.13 -m venv .venv;                                   if ($LASTEXITCODE) { throw "venv 생성 실패" }
+# Windows (PowerShell 5.1) — py 런처로 .python-version 과 같은 버전을 지정한다(기존 .venv 는 --clear 로 다시 만든다)
+# py 런처가 없으면(pyenv-win 등) 핀 버전 python.exe 경로로 만든다 — 예: & (pyenv which python) -m venv --clear .venv
+py -3.13 -m venv --clear .venv;                           if ($LASTEXITCODE) { throw "venv 생성 실패" }
 .\.venv\Scripts\python --version                          # .python-version 과 같은 3.13.x 인지 확인
 .\.venv\Scripts\python -m pip install --upgrade pip;      if ($LASTEXITCODE) { throw "pip 갱신 실패" }
-.\.venv\Scripts\python -m pip install --uploaded-prior-to P1D --upgrade <패키지>
-.\.venv\Scripts\python -m pip show <패키지>
+.\.venv\Scripts\python -m pip install --uploaded-prior-to P1D --upgrade <패키지>; if ($LASTEXITCODE) { throw "후보 설치 실패" }
+.\.venv\Scripts\python -m pip show <패키지>;            if ($LASTEXITCODE) { throw "pip show 실패" }
 .\.venv\Scripts\python -m pip install --uploaded-prior-to P1D -r requirements.txt; if ($LASTEXITCODE) { throw "설치 실패" }
 .\.venv\Scripts\python -m pip check;                      if ($LASTEXITCODE) { throw "pip check 실패" }
 .\.venv\Scripts\python -m ruff check .;                   if ($LASTEXITCODE) { throw "ruff 실패" }
@@ -111,17 +112,17 @@ py -3.13 -m venv .venv;                                   if ($LASTEXITCODE) { t
 ```
 
 ```bash
-# macOS / Linux — pyenv 를 쓰면 python 이 .python-version 을 따른다
-set -e
+# macOS / Linux — pyenv 를 쓰면 python 이 .python-version 을 따른다. && 는 실패한 곳에서 멈춘다
+# (⛔ 대화형 셸에 set -e 를 걸지 않는다 — 명령 하나가 실패하면 셸이 닫힌다)
 python --version                                          # .python-version 과 같은 3.13.x 인지 확인
-python -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip
-./.venv/bin/python -m pip install --uploaded-prior-to P1D --upgrade <패키지>
-./.venv/bin/python -m pip show <패키지>
-./.venv/bin/python -m pip install --uploaded-prior-to P1D -r requirements.txt
-./.venv/bin/python -m pip check
-./.venv/bin/python -m ruff check .
-./.venv/bin/python -m pytest -q -W error::DeprecationWarning
+python -m venv --clear .venv \
+  && ./.venv/bin/python -m pip install --upgrade pip \
+  && ./.venv/bin/python -m pip install --uploaded-prior-to P1D --upgrade <패키지> \
+  && ./.venv/bin/python -m pip show <패키지>
+./.venv/bin/python -m pip install --uploaded-prior-to P1D -r requirements.txt \
+  && ./.venv/bin/python -m pip check \
+  && ./.venv/bin/python -m ruff check . \
+  && ./.venv/bin/python -m pytest -q -W error::DeprecationWarning
 ```
 
 ### 5-2. Tailwind CLI · htmx

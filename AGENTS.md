@@ -131,7 +131,7 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 
 ## 템플릿 고유 사항
 
-- 형제 FastAPI 템플릿과 달리 프론트엔드 빌드 체인(Node·pnpm)이 없다. CSS 는 Tailwind standalone CLI(`skeleton/scripts/tailwind.*`), 스크립트는 벤더링한 htmx 와 `app/static/js/app.js` 뿐이다. ⛔ Node 의존 단계를 들이지 않는다.
+- 형제 FastAPI 템플릿과 달리 프론트엔드 빌드 체인(Node·pnpm)이 없다. CSS 는 Tailwind standalone CLI(`skeleton/scripts/tailwind.*`), 스크립트는 벤더링한 htmx, `app/static/js/app.js`, 공지 편집기 `app/static/js/editor/`(빌드 없는 ES 모듈)뿐이다. ⛔ Node 의존 단계를 들이지 않는다.
 - 인증은 DB 세션 불투명 토큰 쿠키다(JWT 미사용). 공통 설정 키 `REFRESH_TOKEN_EXPIRE_DAYS` 를 로그인 세션 수명으로 쓴다. FastAPI 전용 키(`ACCESS_TOKEN_EXPIRE_MINUTES`·`REFRESH_TOKEN_TRANSPORT`·`CORS_ORIGINS`·`FRONTEND_URL`·`BACKEND_PUBLIC_URL`)는 `.env.example` 에 두지 않는다.
 - 공지 첨부 다운로드 경로 `/api/v1/notices/<id>/attachments/<aid>` 는 공통 `notice_service.download_url` 이 만드는 URL 과 같아야 한다 — 바꾸지 않는다.
 - 생성 프로젝트는 평면 구조(`app/`·`alembic/`·`tests/` 가 루트)다. 공통 `config.py` 의 `BACKEND_ROOT` 는 이 구조에서 프로젝트 루트를 가리킨다.

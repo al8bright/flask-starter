@@ -24,7 +24,7 @@
 - **계층 분리**: 뷰(`app/web/`)는 HTTP 입출력·폼 해석·템플릿 선택만 한다. 도메인 로직은 `services/`, 검증은 `schemas/`(pydantic)에 둔다. 도메인 오류는 `ServiceError` 로 던지고 상태 코드는 `app/web/errors.py` 의 `STATUS_BY_CODE` 에서 정한다.
 - **공통 계층은 형제 템플릿과 같다**: `app/config.py`·`app/cli.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` 은 FastAPI 형제 템플릿과 파일 단위로 같은 코드에서 시작하였다. 프레임워크(Flask) 의존 코드를 이쪽에 넣지 않는다.
 - **인증**: 로그인마다 `auth_sessions` 행 하나를 만들고 불투명 토큰을 httpOnly·SameSite=Lax 쿠키로 보낸다. 요청마다 DB 에서 세션을 확인한다. ⛔ JWT·Flask-Login·Flask 기본 `session` 으로 인증 상태를 들고 다니지 않는다(Flask `session` 은 flash 메시지와 CSRF 토큰 전용). 흐름은 `ARCHITECTURE.md` §9.
-- **CSRF**: 상태를 바꾸는 요청은 모두 POST 이고 Flask-WTF `CSRFProtect` 가 전역으로 검사한다. 폼에는 `{{ csrf_field() }}` 를 넣고, htmx 요청은 `<body>` 의 `hx-headers` 가 `X-CSRFToken` 을 보낸다. ⛔ 뷰에 `csrf.exempt` 를 붙이지 않는다.
+- **CSRF**: 상태를 바꾸는 요청은 모두 POST 이고 Flask-WTF `CSRFProtect` 가 전역으로 검사한다. 폼에는 `{{ csrf_field() }}` 를 넣고, htmx 요청은 `<body>` 의 `hx-headers` 가, fetch 로 POST 하는 스크립트는 `<meta name="csrf-token">` 값으로 `X-CSRFToken` 헤더를 보낸다. ⛔ 뷰에 `csrf.exempt` 를 붙이지 않는다.
 - **htmx 는 선택적 보강**: 모든 화면은 htmx 없이 일반 폼·링크로 동작해야 한다. `HX-Request` 분기는 `app/web/htmx.py` 의 헬퍼로만 한다.
 - **CSP**: `script-src 'self'`·`style-src 'self'` 다. ⛔ 인라인 `<script>`·`style=` 속성·`on*=` 이벤트 속성·외부 CDN 스크립트를 쓰지 않는다. 스크립트는 `app/static/js/`, 스타일은 Tailwind 클래스로 쓴다.
 
@@ -42,7 +42,7 @@
 
 스킬 원문은 `.claude/skills/<이름>/SKILL.md` 에 있다. Claude Code 는 자동으로 로드하고, 다른 에이전트는 해당 작업 전에 파일을 직접 읽는다.
 
-- **add-domain**: 도메인 추가(모델 → 마이그레이션 → 스키마 → 서비스 → 뷰·템플릿 → 테스트, §4·§8)
+- **add-domain**: 도메인 추가(실패 테스트부터 — 모델 → 마이그레이션 → 스키마 → 서비스 → 뷰·템플릿, §4·§8)
 - **db-migration**: DB 스키마 변경 시 Alembic 워크플로와 금지사항(§11)
 - **add-screen**: 화면 추가(Jinja 템플릿·htmx partial·Tailwind·CSRF·CSP, §13·§15)
 - **pr-workflow**: 커밋·push 흐름, push 전 검증 명령, 브랜치·PR 기준(`[Structural]`/`[Behavioral]`)

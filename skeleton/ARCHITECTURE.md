@@ -15,11 +15,11 @@
 
 | # | 고정 규칙 (MUST) | § |
 |---|------------------|---|
-| 1 | **표준 스택 고정**: Flask 3 + Jinja + SQLAlchemy 2 + Alembic, DB 는 **PostgreSQL**. 화면 보강은 htmx(벤더링), 스타일은 Tailwind CSS standalone CLI. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js, jQuery 등 DOM 유틸리티 라이브러리 금지 — 정확한 버전은 `requirements.txt`·`scripts/versions.env` | §2 |
+| 1 | **표준 스택 고정**: Flask 3 + Jinja + SQLAlchemy 2 + Alembic, DB 는 **PostgreSQL**. 화면 보강은 htmx(벤더링), 스타일은 Tailwind CSS standalone CLI. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js, jQuery 등 DOM 유틸리티 라이브러리 금지 — 정확한 버전은 `requirements.txt`·`scripts/versions.env` | §2, §13 |
 | 2 | **DB는 항상 Alembic으로만 관리** — 모든 스키마 생성·변경은 마이그레이션. ⛔ dev/운영 런타임 `create_all`·자동 DDL·수동 `ALTER` 금지(테스트 임시 DB만 예외) | §11 |
 | 3 | **설정은 OS 무관한 프로젝트 루트 `.env` 하나로 주입**. ⛔ 개발 중 `$env:`/`export`/`set` 셸 환경변수 의존 금지. ⛔ 실제 `.env` 커밋 금지(`.env.example`만) | §5, §17 |
 | 4 | **시각은 KST 단일 기준 — OS·프로세스 시각대와 무관** — 저장·비교 기준은 KST naive(`now()` = 고정 오프셋 UTC+9 로 계산한 naive 값), PostgreSQL `connect_args`에 `timezone=Asia/Seoul`. ⛔ OS 시각대를 따르는 호출(naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()`) 금지 — `now()`·`KST` 를 쓴다. ⛔ UTC 저장·aware 시각 비교 금지(외부 연동 값의 경계 변환과 표시용 `ZoneInfo` 변환은 허용) | §10, §7 |
-| 5 | **화면은 블루프린트, JSON 은 `/api/v1`** — 화면(`/`·`/login`·`/admin`)은 HTML 을 렌더링하고, `/api/v1` 아래에는 헬스 체크·첨부 다운로드만 둔다. 블루프린트 등록은 `app/web/__init__.py` 한 곳 | §4 |
+| 5 | **화면은 블루프린트, JSON 은 `/api/v1`** — 화면(`/`·`/login`·`/admin`)은 HTML 을 렌더링하고, `/api/v1` 아래에는 헬스 체크·첨부 다운로드만 둔다. 예외: 편집기 이미지 업로드 `POST /admin/editor/images` 는 Accept 가 JSON 을 선호할 때 JSON 으로 답한다. 블루프린트 등록은 `app/web/__init__.py` 한 곳 | §4, §13 |
 | 6 | **설정 접근은 `get_settings()` + `@lru_cache`** — ⛔ 모듈 전역 `settings` 싱글톤 금지 | §5 |
 | 7 | **공통 의존성은 `app/dependencies.py` 단일 파일** (`get_db`, `current_user`, `login_required`, `admin_required`, 인증 쿠키) | §6 |
 | 8 | **계층 분리** — 뷰(`app/web/`)는 HTTP 입출력·폼 해석·템플릿 선택만, 도메인 로직은 `services/`, 검증은 `schemas/`(pydantic). 도메인 오류는 `ServiceError` + `app/web/errors.py` 의 `STATUS_BY_CODE` | §4, §8 |
@@ -259,7 +259,7 @@ def get_db() -> Session:                       # 요청 단위 DB 세션 — 같
 
 def current_user() -> User | None: ...         # 살아 있는 세션 + 활성 사용자일 때만
 
-def login_required(view): ...                  # 비로그인 → /login?next=… (htmx 요청은 401 + HX-Redirect)
+def login_required(view): ...                  # 비로그인 → /login?next=… (htmx 는 401 + HX-Redirect, Accept JSON 선호는 401 JSON)
 def admin_required(view): ...                  # 비로그인 → 로그인 화면, 로그인했지만 관리자가 아니면 403
 def set_auth_cookie(response, token): ...      # 인증 쿠키 속성은 여기 한 곳 (§14)
 def clear_auth_cookie(response): ...
@@ -324,7 +324,7 @@ class Order(Base):
 - 실패는 `ServiceError(code, message)` **도메인 예외**로 던진다. 뷰에서 `try/except` 로 직접 HTTP 로 바꾸지 않는다 — 예외는 폼을 다시 그려야 하는 경우(예: 본문이 비어 있음 `empty_body`)와 로그인 화면(`invalid_credentials` 401·`too_many_attempts` 429)뿐이다.
 - N+1 방지: 조회 시 `selectinload` 등 명시적 로딩 옵션.
 - `ServiceError(code)`(와 저장소의 `StorageError`)는 `app/web/errors.py` 의 전역 핸들러가 `STATUS_BY_CODE` 표로 HTTP 상태를 정한다(`not_found` 404, `self_modification`·`last_admin`·`too_many_attachments` 409, `file_too_large` 413, 검증류 422, **표에 없으면 400**). 표는 형제 템플릿의 `app/api/errors.py` 와 같은 값이다. **새 코드를 만들면 `STATUS_BY_CODE` 에 등록한다** — 등록을 잊으면 조용히 400 이 된다.
-- 오류 응답 형식은 요청에 따라 다르다: `/api/v1/*` 는 JSON `{"detail", "code"}`, htmx 요청은 `partials/alert.html` 을 `HX-Retarget: #alerts` 로, 그 밖은 `errors/error.html` 전체 페이지. 처리되지 않은 예외는 원인을 서버 로그에만 남기고 500 화면을 낸다.
+- 오류 응답 형식은 요청에 따라 다르다: `/api/v1/*` 와 Accept 가 JSON 을 선호하는 요청(`app/web/accept.py` 의 `wants_json`)은 JSON `{"detail", "code"}`, htmx 요청은 `partials/alert.html` 을 `HX-Retarget: #alerts`·`HX-Reswap: innerHTML` 로, 그 밖은 `errors/error.html` 전체 페이지. 처리되지 않은 예외는 원인을 서버 로그에만 남기고 500 화면을 낸다.
 
 ### 기본 제공 테이블
 
@@ -360,9 +360,9 @@ class Order(Base):
 
 - 허용 태그·속성·URL 스킴은 `core/sanitize.py` 의 표가 SSOT 다(`script`·`style`·`on*`·`style=` 속성·`javascript:` 는 제거, `iframe` 은 YouTube embed 만 — `sandbox` 강제). 정화 후 글자·`img`·`iframe` 이 없으면 빈 본문으로 422.
 - 정화 결과의 `style` 제거와 `iframe` 호스트는 CSP(§9)와 한 쌍이다 — 허용 목록을 넓히면 CSP 와 `tests/test_sanitize.py` 를 같은 변경에서 고친다.
-- 본문 편집은 위지웍 편집기(`app/static/js/editor/`, §13)다. 편집기는 숨긴 `textarea[data-rich-editor]` 에 저장 HTML 을 동기화하고, 서버는 그 값을 그대로 정화한다 — 편집기는 정화를 대신하지 않는다. JS 가 없으면 HTML `textarea` 와 이미지 코드 받기(`partials/editor_image.html`)로 동작한다.
+- 본문 편집은 위지웍 편집기(`app/static/js/editor/`, §13)다. 편집기는 숨긴 `textarea[data-rich-editor]` 에 저장 HTML 을 동기화하고, 서버는 그 값을 그대로 정화한다 — 편집기는 정화를 대신하지 않는다. JS 가 없으면 HTML `textarea` 그대로 동작한다.
 - 편집기가 만드는 저장 마크업(`media-html.js`·`editor-dom.js`)은 정화 허용 목록과 한 쌍이다. 마크업을 바꾸면 `core/sanitize.py` 허용 목록과 `tests/test_editor.py` 출력 계약을 함께 확인한다.
-- 본문 이미지 `POST /admin/editor/images` 는 `Accept` 가 JSON 을 선호하면(`app/web/accept.py` 의 `wants_json`) 201 `{key, url, width, height}` 를, 아니면 붙여 넣을 `<img>` 코드 조각을 돌려준다. 오류도 JSON 요청이면 `{detail, code}` JSON 이다.
+- 본문 이미지 `POST /admin/editor/images` 의 응답은 세 갈래다: `Accept` 가 JSON 을 선호하면(`app/web/accept.py` 의 `wants_json`) 201 `{key, url, width, height}`, htmx 요청이면 붙여 넣을 `<img>` 코드 조각(`partials/editor_image.html`), 그 밖은 코드를 flash 로 담아 공지 목록으로 redirect 한다. 오류도 JSON 요청이면 `{detail, code}` JSON 이다.
 
 ### 화면 경로 요약
 
@@ -420,7 +420,7 @@ class Order(Base):
 - `SECRET_KEY` 는 Flask 서명 쿠키(flash·CSRF 토큰)의 키다. 공개된 기본값(`change-me-in-production-use-32-bytes`)이거나 32 bytes 미만이면 개발에서는 **경고**, `APP_ENV=production` 에서는 **기동 실패**다(`app/main.py` 의 `check_startup_settings`). 스캐폴드가 `.env` 에 무작위로 생성해 넣는다.
 - `APP_ENV=production` 이면 `BCRYPT_ROUNDS` 12 미만, `COOKIE_SECURE=false`, `SEED_DEFAULT_ADMIN=true` 도 기동을 거부한다.
 - **운영 관리자 계정**은 명령줄 도구로 만든다 — `python -m app.cli create-admin --username <이름>`, 비밀번호 재설정은 `python -m app.cli set-password --username <이름>`(해당 사용자의 세션 전체 폐기·잠금 해제). 비밀번호는 인자로 받지 않고 대화형 입력 또는 `--password-stdin` 으로만 받는다.
-- 기본 관리자(`admin`)는 `SEED_DEFAULT_ADMIN=true` + `DEFAULT_ADMIN_PASSWORD` 로 기동 시 시드한다. **코드 기본값은 꺼짐**이고, 스캐폴드가 개발용 `.env` 에서만 켜고 무작위 비밀번호를 넣는다. 비밀번호가 비어 있으면 시드를 건너뛰고 에러 로그를 남긴다. ⛔ 비밀번호 기본값·하드코딩 기본 계정은 금지.
+- 기본 관리자(`admin`)는 `SEED_DEFAULT_ADMIN=true` + `DEFAULT_ADMIN_PASSWORD` 로 기동 시 시드한다. **코드 기본값은 꺼짐**이다. `.env.example` 은 켠 상태에 비밀번호를 비워 두고, 스캐폴드가 개발용 `.env` 에 무작위 비밀번호를 채운다. 비밀번호가 비어 있으면 시드를 건너뛰고 에러 로그를 남긴다. ⛔ 비밀번호 기본값·하드코딩 기본 계정은 금지.
 
 ### SSO (도입 시 선택적 확장)
 
@@ -470,7 +470,7 @@ class Order(Base):
 
 ## 12. 테스트 (pytest)
 
-- `pytest.ini`: `pythonpath = .`, `testpaths = tests`. 실행은 `pytest -q`(CI 는 `-W error::DeprecationWarning` 을 붙인다).
+- `pytest.ini`: `pythonpath = .`, `testpaths = tests`, `filterwarnings = error::DeprecationWarning`(CI 와 같은 기준). 실행은 `pytest -q`.
 - DB 는 테스트마다 **임시 SQLite 파일**(`tmp_path`)이고 `Base.metadata.create_all/drop_all` 한다. in-memory(StaticPool)는 연결 하나를 모든 세션이 공유해 트랜잭션 경계가 운영과 달라지므로 쓰지 않는다.
 - 앱은 `create_app(session_factory=...)` 로 테스트 DB 에 붙인다. 요청은 운영과 같이 **요청마다 새 세션**을 열고 닫는다 — 테스트의 `db_session` 을 요청에 넘기면 커밋하지 않은 변경도 보여 `commit()` 누락을 잡지 못한다. 요청 뒤에는 `db_session` 캐시를 만료해 단언이 커밋된 값을 읽는다.
 - bcrypt 비용은 `BCRYPT_ROUNDS=4` 로 낮춘다(운영 12).
@@ -482,7 +482,7 @@ class Order(Base):
   - `db_session_factory` · `db_session`: 테스트 엔진에 바인딩된 세션 팩토리와 테스트별 세션.
   - `flask_app` · `client`: 테스트 DB 에 붙인 앱과 `test_client`.
   - `admin_user` · `normal_user`: 관리자·일반 사용자 행. `admin_client` · `user_client`: 그 계정으로 **실제 로그인**한 클라이언트.
-- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py` 다.
+- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py`, `test_editor.py`(편집기 업로드 JSON·정화 후 출력 계약·모듈 import·CSP 정적 점검) 다.
 - 화면 테스트는 상태 코드와 `get_data(as_text=True)` 안의 핵심 문구로 확인한다. htmx 경로는 partial 만 왔는지(전체 레이아웃 없음), 오류면 `HX-Retarget: #alerts` 인지 확인한다. 브라우저 동작(htmx 교체·CSP 위반 없음)은 테스트로 잡히지 않으므로 개발 서버에서 확인한다.
 
 ```python
@@ -503,7 +503,7 @@ def _clear_settings_cache():
 
 | 위치 | 용도 |
 |---|---|
-| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), `<body hx-headers>`(CSRF), `htmx-config` 메타 |
+| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), `<body hx-headers>`(htmx CSRF), `<meta name="csrf-token">`(fetch 용 CSRF), `htmx-config` 메타 |
 | `templates/admin/_layout.html` | 관리자 화면 골격 — `shell` 을 왼쪽 메뉴(레일)+본문으로 바꾼다. 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다 |
 | `templates/partials/alerts_region.html` | `#alerts`(flash·htmx 오류 알림) 영역 — 골격마다 한 번만 넣는다 |
 | `templates/<영역>/<화면>.html` | 전체 페이지(`public/`·`auth/`·`admin/`·`errors/`) |
@@ -517,7 +517,7 @@ def _clear_settings_cache():
 - **조회**: GET → 전체 페이지. 목록 검색·페이지 이동은 같은 URL 의 GET 폼·링크다.
 - **변경**: POST 폼(`{{ csrf_field() }}` 포함) → 성공하면 `flash(…, "success")` + redirect(PRG), 검증 실패면 입력값·오류와 함께 같은 템플릿을 **422** 로.
 - ⛔ GET 으로 상태를 바꾸지 않는다(로그아웃 포함). ⛔ 상태를 바꾸는 JSON API 를 화면용으로 만들지 않는다 — 변경은 CSRF 로 보호된 폼 POST 로만 한다.
-  예외는 편집기 이미지 업로드 하나다. 같은 폼 POST 경로가 `Accept: application/json` 일 때만 JSON 으로 답하며(§8), CSRF 는 `X-CSRFToken` 헤더(`<meta name="csrf-token">` 값)로 검사한다.
+  예외는 편집기 이미지 업로드 하나다. 같은 폼 POST 경로가 Accept 에서 JSON 을 HTML 보다 선호할 때만(`wants_json`) JSON 으로 답하며(§8), CSRF 는 `X-CSRFToken` 헤더(`<meta name="csrf-token">` 값)로 검사한다.
 
 ### htmx (선택적 보강)
 
@@ -529,7 +529,7 @@ def _clear_settings_cache():
 - **오류**: `ServiceError`·CSRF·HTTP 오류는 htmx 요청이면 `app/web/errors.py` 가 alert partial 을 `HX-Retarget: #alerts` 로 돌려준다. 폼 검증 오류를 그 자리에 다시 그리려면 partial 을 422 로 렌더링한다.
 - **설정**(`base.html` 의 `<meta name="htmx-config">`): `allowEval:false`(CSP — `hx-on`·`hx-vars`·`js:` 접두사 불가), `includeIndicatorStyles:false`(인라인 스타일 금지 — indicator 스타일은 `input.css` 의 `.htmx-request`), `historyCacheSize:0`(로그인 상태가 담긴 화면을 브라우저 저장소에 남기지 않는다), `responseHandling` 으로 4xx·5xx 도 swap(오류 알림 표시).
 - **CSRF**: `<body hx-headers='{"X-CSRFToken": "…"}'>` 가 모든 htmx 요청에 토큰을 싣는다. 폼 안의 `csrf_field()` 도 그대로 둔다(htmx 없이 제출될 때 필요).
-- **인증 만료**: 로그인이 필요한 경로에 htmx 요청이 오면 401 + `HX-Redirect` 로 로그인 화면 전체로 이동한다(§14).
+- **인증 만료**: 로그인이 필요한 경로에 htmx 요청이 오면 401 + `HX-Redirect` 로 로그인 화면 전체로 이동한다(§14). Accept 가 JSON 을 선호하는 fetch 요청(편집기 업로드)은 401 JSON `{detail, code}` 를 받는다.
 - **예제**(skeleton): 공지 검색(`public/notices.html` + `partials/notice_list.html` — 입력 지연 300ms, URL 갱신), 사용자 행 저장(`partials/admin_user_row.html`), 배너 순서 이동(`partials/admin_banner_rows.html`).
 - ⛔ htmx 로 클라이언트 상태(모달 스택·드래그·실시간 동기화)를 흉내 내지 않는다(§2).
 
@@ -537,10 +537,10 @@ def _clear_settings_cache():
 
 - 스크립트는 `app/static/js/` 의 파일만 쓴다. 전역 스크립트는 `base.html` 에서 `defer` 로 불러온다 — `htmx.min.js`(벤더링)와 `app.js`(`data-confirm="<문구>"` 폼의 제출 전 확인).
 - 화면 하나에만 필요한 스크립트는 `{% block scripts %}` 에 `<script type="module">` 로 불러온다. 공지 작성·수정 화면의 편집기(`js/editor/editor.js` 진입점)가 그렇다 — `textarea[data-rich-editor]` 를 찾아 붙이고(`data-upload-url`·`data-max-image-mb`), JS 가 없으면 `textarea` 그대로 동작한다(`[data-editor-fallback]` 안내는 편집기가 붙을 때 숨긴다).
-- 편집기 모듈은 빌드 없이 브라우저가 직접 읽는 ES 모듈이다. `import` 는 `./<파일>.js` 상대 경로만 쓰고 모듈 사이 순환을 만들지 않는다. 형제 템플릿 편집기와 파일 단위로 대응하므로 각 파일 첫 줄에 대응 파일을 명시한다.
+- 편집기 모듈은 빌드 없이 브라우저가 직접 읽는 ES 모듈이다. `import` 는 `./<파일>.js` 상대 경로만 쓰고 모듈 사이 순환을 만들지 않는다. 형제 템플릿 편집기와 파일 단위로 대응하므로 대응 파일이 있으면 첫 줄에 명시한다(`dom.js` 처럼 이 템플릿에만 있는 파일은 용도만 명시한다).
 - ⛔ 인라인 `<script>`·`on*=` 속성·`javascript:` URL·외부 CDN 스크립트(CSP §9). 외부 라이브러리가 필요하면 벤더링하고 버전·무결성을 `scripts/versions.env` 에 기록한다([`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)).
 - DOM 조작은 브라우저 표준 API(`querySelector`·`closest`·`classList`·`addEventListener` 위임·`fetch`)로 한다. ⛔ jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다 — 화면 갱신은 htmx 가, 나머지는 표준 API 가 맡는다. HTML 문자열을 `innerHTML` 로 넣을 때 `style=`·`<script>` 가 들어가지 않게 한다(CSP 위반). 크기·위치는 `el.style.setProperty` 같은 CSSOM 으로 정한다(CSP 가 차단하지 않는다). Chrome 은 `template`·`DOMParser` 로 파싱만 해도 `style`·`on*` 속성마다 위반을 보고하므로, 외부 HTML(붙여넣기)은 편집기 `parseFragment` 처럼 파싱 전에 그 속성을 제거한다.
-- 되돌릴 수 없는 폼(삭제·강제 종료·비활성화)에는 `data-confirm` 을 붙인다.
+- 되돌릴 수 없는 폼(삭제·세션 폐기)에는 `data-confirm` 을 붙인다.
 
 ---
 
@@ -550,7 +550,7 @@ def _clear_settings_cache():
 
 ```
 브라우저 ──GET /admin/notices──▶ before_request: 쿠키 → auth_sessions(해시·만료·폐기) → users(활성·역할)
-          ◀─ 비로그인: 302 /login?next=/admin/notices   (htmx 요청: 401 + HX-Redirect)
+          ◀─ 비로그인: 302 /login?next=/admin/notices   (htmx: 401 + HX-Redirect, fetch(Accept JSON): 401 JSON)
           ◀─ 일반 사용자: 403 화면
 브라우저 ──POST /login (username, password, next, csrf_token)──▶ user_service.authenticate
           ◀─ 302 next + Set-Cookie <snake>_session=<sid>.<secret>; HttpOnly; SameSite=Lax; Path=/
@@ -558,7 +558,7 @@ def _clear_settings_cache():
 ```
 
 - **권한 경계는 서버**다. 템플릿이 메뉴를 숨기는 것(`current_user.role`)은 화면 노출용이고, 실제 차단은 `login_required`·`admin_required`·관리자 블루프린트의 `before_request` 다.
-- **CSRF**: `CSRFProtect` 가 모든 POST 를 검사한다(폼 필드 `csrf_token` 또는 헤더 `X-CSRFToken`). 토큰은 Flask 서명 쿠키(`<snake>_flash`)에 묶이고 시간 만료가 없다(`WTF_CSRF_TIME_LIMIT=None` — 긴 글 작성 중 저장 실패 방지). 로그인 성공 시 `session.clear()` 로 새 토큰을 받는다. HTTPS 에서는 `WTF_CSRF_SSL_STRICT` 로 `Referer` 가 같은 호스트여야 한다. 실패는 400 + 안내 문구(htmx 면 `#alerts`).
+- **CSRF**: `CSRFProtect` 가 모든 POST 를 검사한다(폼 필드 `csrf_token` 또는 헤더 `X-CSRFToken`). 토큰은 Flask 서명 쿠키(`<snake>_flash`)에 묶이고 시간 만료가 없다(`WTF_CSRF_TIME_LIMIT=None` — 긴 글 작성 중 저장 실패 방지). 로그인 성공 시 `session.clear()` 로 새 토큰을 받는다. HTTPS 에서는 `WTF_CSRF_SSL_STRICT` 로 `Referer` 가 같은 호스트여야 한다. 실패는 400 + 안내 문구(htmx 면 `#alerts`, Accept JSON 선호면 JSON — §8 오류 응답 형식과 같다).
 - `SameSite=Lax` 쿠키는 교차 사이트 POST 에 실리지 않는다 — CSRF 토큰과 함께 이중 방어다. ⛔ 인증 쿠키를 `SameSite=None` 으로 바꾸지 않는다.
 - **배포**: 앱·정적 파일·업로드를 **같은 오리진**에서 서빙한다(리버스 프록시가 전부 Flask 로 넘기거나 `/static`·`/uploads/public` 만 프록시가 직접 서빙). HTTPS 종단 뒤에 두고 `COOKIE_SECURE=true`. 프록시 뒤라면 `Host`·`X-Forwarded-Proto` 가 올바르게 전달되는지 확인한다(CSRF `Referer` 검사·redirect URL 이 이것에 의존한다).
 
@@ -566,15 +566,14 @@ def _clear_settings_cache():
 
 ## 15. 스타일 — Tailwind CSS v4 (standalone CLI)
 
-- **CSS-first**: `app/static/css/input.css` 에 `@import "tailwindcss"`, 클래스 탐색 위치 `@source "../../templates"`·`@source "../js"`, 디자인 토큰 `@theme`(글꼴 `--font-sans` 시스템 한글 글꼴, 색 `surface`·`panel`·`ink`·`muted`·`line`·`accent`·`on-accent`·`danger`, 관리자 레일 `rail`·`rail-ink`·`rail-active`, 다크 모드는 `prefers-color-scheme`). 생성 프로젝트는 토큰 값만 바꿔 자기 브랜드로 쓴다. 별도 `tailwind.config.js` 를 두지 않는다.
-- 공용 컴포넌트 클래스는 `input.css` 의 `@layer components` 에 둔다 — 입력·버튼(`input`·`btn`·`btn-primary`·`link`·`link-danger`), 표식(`badge` 게시·사용, `seal` 고정·잠김·오류, `draft` 초안·중지), 면(`panel`·`panel-title`), 화면 제목(`page-head`·`back-link`), 목록(`table-wrap`·`table`·`num`), 서식 표(`form-grid` + `label`·`field`, `hint`), 본문(`rich-text`).
-- 기본 화면은 사무 문서에서 착안하였다: 화면 제목·목록·서식 표의 위쪽을 굵은 먹선(`border-ink`)으로 닫고, 면은 그림자 없이 테두리 하나로 구분한다. 한국어 줄바꿈은 `word-break: keep-all` 이다(⛔ `overflow-wrap: anywhere` — 표 최소 폭이 0 이 되어 좁은 화면에서 글자마다 줄이 바뀐다).
-- 글꼴은 내려받지 않는다(CSP `font-src` 기본값 `'self'`). 웹 글꼴이 필요하면 `app/static/` 에 벤더링하고 버전·SHA-256 을 `scripts/versions.env` 에 기록한다.
+- **CSS-first**: `app/static/css/input.css` 에 `@import "tailwindcss"`, 클래스 탐색 위치 `@source "../../templates"`·`@source "../js"`, 디자인 토큰 `@theme`(글꼴 `--font-sans` — 설치되어 있으면 Pretendard, 없으면 시스템 한글 글꼴, 색 `surface`·`panel`·`ink`·`muted`·`line`·`accent`·`on-accent`·`danger`, 관리자 레일 `rail`·`rail-ink`·`rail-active`, 다크 모드는 `prefers-color-scheme`). 생성 프로젝트는 토큰 값만 바꿔 자기 브랜드로 쓴다. 별도 `tailwind.config.js` 를 두지 않는다.
+- 공용 컴포넌트 클래스는 `input.css` 의 `@layer components` 에 둔다 — 입력·버튼(`input`·`btn`·`btn-primary`·`link`·`link-danger`), 표식(`badge` 게시·사용, `seal` 고정·잠김·오류, `draft` 초안·중지), 면(`panel`·`panel-title`), 화면 제목(`page-head`·`back-link`), 목록(`table-wrap`·`table`·`num`), 서식 표(`form-grid` + `label`·`field`, `hint`), 본문(`rich-text`), 편집 영역(`editor`), htmx 진행 표시(`htmx-request`).
+- 기본 화면은 사무 문서에서 착안하였다: 화면 제목은 아래쪽, 목록·서식 표는 위쪽을 굵은 먹선(`border-ink`)으로 닫고, 면은 그림자 없이 테두리 하나로 구분한다. 한국어 줄바꿈은 `word-break: keep-all` 이다(⛔ `overflow-wrap: anywhere` — 표 최소 폭이 0 이 되어 좁은 화면에서 글자마다 줄이 바뀐다).
+- 글꼴은 내려받지 않는다(CSP `font-src` 미지정 → `default-src 'self'`). 웹 글꼴이 필요하면 `app/static/` 에 벤더링하고 버전·SHA-256 을 `scripts/versions.env` 에 기록하며 라이선스를 확인한다.
 - **빌드**: `scripts/tailwind.ps1`(Windows) · `./scripts/tailwind.sh`(macOS/Linux) — `.tools/` 에 `TAILWIND_VERSION` 바이너리가 없을 때만 내려받고 **`scripts/tailwind-sha256sums.txt` 와 SHA-256 이 다르면 쓰지 않고 중단**한다. 개발 중에는 `-Watch` / `--watch`. ⛔ Node·npm 으로 빌드하지 않는다.
 - 출력 `app/static/css/app.css` 는 빌드 결과라 커밋하지 않는다(`.gitignore`). 배포 산출물을 만들 때 다시 빌드한다.
 - ⛔ 클래스 이름을 문자열 조합(`"text-" ~ color`)으로 만들지 않는다 — 빌드가 찾지 못한다. 조건부 클래스는 완성된 이름 전체를 쓴다.
 - ⛔ `style="…"` 속성·`<style>` 블록(CSP §9).
-- 한글 UI 기본 폰트는 시스템 폰트 스택을 쓴다. 웹 폰트를 들이면 파일을 `app/static/` 에 두고(CSP `font-src` 미지정 → `default-src 'self'`) 라이선스를 확인한다.
 
 ---
 
@@ -611,7 +610,7 @@ def _clear_settings_cache():
 | `PUBLIC_FILES_BASE_URL` | 공개 파일·첨부 다운로드 URL 접두사. 같은 오리진이면 비운다 |
 | `MAX_IMAGE_UPLOAD_MB`, `MAX_ATTACHMENT_UPLOAD_MB` | 업로드 크기 상한(MB, 기본 5 / 20) — 초과 시 413. 요청 본문 상한(`MAX_CONTENT_LENGTH`)도 이 값에서 정해진다 |
 | `TZ` | Unix 프로세스 시각대(기본 `Asia/Seoul`, 외부 라이브러리용). 앱 시각(`now()`)·로그는 이 값·OS 와 무관하게 KST 다. Windows 에서는 프로세스에 적용하지 않는다 (§10) |
-| `SEED_DEFAULT_ADMIN`, `DEFAULT_ADMIN_PASSWORD` | 기동 시 기본 관리자(admin) 시드 여부·초기 비밀번호. **코드 기본값은 꺼짐** — 스캐폴드가 개발용 `.env` 에서만 무작위 비밀번호로 켠다(§9, §21) |
+| `SEED_DEFAULT_ADMIN`, `DEFAULT_ADMIN_PASSWORD` | 기동 시 기본 관리자(admin) 시드 여부·초기 비밀번호. **코드 기본값은 꺼짐** — `.env.example` 은 켠 상태에 비밀번호를 비워 두고, 스캐폴드가 개발용 `.env` 에 무작위 비밀번호를 채운다(§9, §21) |
 | `OAUTH_*` | SSO 도입 시 추가(authorize/token/userinfo URL, client id/secret, redirect uri) |
 
 - 공통 설정의 FastAPI 전용 키(`ACCESS_TOKEN_EXPIRE_MINUTES`·`REFRESH_TOKEN_TRANSPORT`·`CORS_ORIGINS`·`FRONTEND_URL`·`BACKEND_PUBLIC_URL`)는 이 템플릿이 읽지 않으므로 `.env` 에 두지 않는다(§5).
@@ -642,8 +641,8 @@ def _clear_settings_cache():
 ## 20. 변경 반영 (GitHub)
 
 원칙:
-- 커밋·push 전에 로컬에서 `ruff check`·`pytest` 를 통과시킨다. 템플릿·CSS·htmx 를 바꿨으면 CSS 를 빌드하고 브라우저에서 화면과 콘솔(CSP 위반 없음)을 확인한다. 실패했거나 확인하지 않은 변경은 push 하지 않는다.
-- CI(`.github/workflows/ci.yml`)는 push·PR 마다 Ubuntu·Windows 테스트, CSS 빌드(SHA-256 검증 포함), PostgreSQL 마이그레이션 왕복, PowerShell 5.1 구문 검사, `pip-audit`(경고성)를 돈다. CI 가 실패하면 되돌리거나 바로 고치는 커밋을 올린다.
+- 커밋·push 전에 로컬에서 `pip check`·`ruff check`·`pytest` 를 통과시킨다. 템플릿·CSS·htmx 를 바꿨으면 CSS 를 빌드하고 브라우저에서 화면과 콘솔(CSP 위반 없음)을 확인한다. 실패했거나 확인하지 않은 변경은 push 하지 않는다.
+- CI(`.github/workflows/ci.yml`)는 `main` push 와 `main` 대상 PR 마다 Ubuntu·Windows 테스트, CSS 빌드(SHA-256 검증 포함), PostgreSQL 마이그레이션 왕복, PowerShell 5.1 구문 검사, `pip-audit`(경고성)를 돈다. CI 가 실패하면 되돌리거나 바로 고치는 커밋을 올린다.
 - AI 에이전트는 **사용자가 요청할 때만** 커밋·push 한다.
 
 기본 흐름(단독 개발은 `main` 직접 커밋, 브랜치·PR 은 선택), push 전 검증 명령, 브랜치·PR 을 쓰는 기준, 협업자가 생겼을 때의 전환은 **[`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md) 한 곳**에 둔다. PR 본문 양식은 `.github/pull_request_template.md` 다.
@@ -659,8 +658,8 @@ def _clear_settings_cache():
 - [ ] `AGENTS.md` 「프로젝트 개요」의 `<…>` 자리표시를 채운다 — 비어 있으면 첫 작업 전에 사용자에게 묻는다
 - [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`flask --app app.main run --debug`) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 `{"db": "ok", …}` 를 돌려준다(DB 에 접근할 수 없으면 503)
 - [ ] 기본 관리자(`admin`, 비밀번호는 `.env` 의 `DEFAULT_ADMIN_PASSWORD`)로 로그인되고 관리자 대시보드에 「DB 정상」과 리비전이 보인다
-- [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다(공지 검색·사용자 행 저장·배너 순서 이동)
-- [ ] 로컬 검증이 통과한다 — `ruff check .`·`pytest -q` ([`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md))
+- [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다(공지 검색·사용자 행 저장·배너 순서 이동, 공지 작성 화면 편집기의 이미지 업로드·붙여넣기)
+- [ ] 로컬 검증이 통과한다 — `pip check`·`ruff check .`·`pytest -q` ([`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md))
 - [ ] 첫 push 후 CI 가 통과한다
 - [ ] 첫 기능을 `PLAN.md` 에 적고 실패 테스트 하나부터 시작한다 (§18)
 

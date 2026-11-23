@@ -16,6 +16,8 @@
 .\scripts\tailwind.ps1 -Watch
 ```
 
+Windows 에서 실행 정책 때문에 `.ps1` 이 막히면 `powershell -ExecutionPolicy Bypass -File .\scripts\tailwind.ps1 -Watch` 처럼 실행한다(아래 `bootstrap.ps1` 도 같다).
+
 ```bash
 # macOS / Linux — 터미널 1
 ./.venv/bin/python -m flask --app app.main run --debug
@@ -28,7 +30,7 @@
 
 ### 다른 머신에서 clone 한 경우
 
-clone 한 저장소에는 실제 `.env`, 설치된 의존성, 빌드된 CSS(`app/static/css/app.css`)가 없다. 다음 순서로 준비한다. 명령은 모두 프로젝트 루트에서 실행하며, `DATABASE_URL` 은 먼저 생성했거나 접근 가능한 PostgreSQL 데이터베이스를 가리켜야 한다.
+clone 한 저장소에는 실제 `.env`, 설치된 의존성, 빌드된 CSS(`app/static/css/app.css`)가 없다. 다음 순서로 준비한다. 명령은 모두 프로젝트 루트에서 실행한다.
 
 1. 런타임을 확인하고 환경 파일을 만든다.
 
@@ -44,11 +46,26 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-2. `.env` 의 `DATABASE_URL` 과 `SECRET_KEY`(예: `openssl rand -hex 32`)를 개발 환경에 맞게 설정한다. 기본 관리자를 시드하려면 `DEFAULT_ADMIN_PASSWORD` 도 채운다.
-3. 의존성을 설치하고 CSS 를 빌드한다. Tailwind CLI 는 처음 한 번 `.tools/` 에 내려받고 `scripts/tailwind-sha256sums.txt` 의 SHA-256 과 맞을 때만 쓴다.
+2. 데이터베이스를 생성하고 `.env` 를 설정한다. `bootstrap -WithPostgres` 는 PostgreSQL 설치만 하고 데이터베이스는 생성하지 않는다. 이름은 `.env.example` 의 `DATABASE_URL` 기본값(`__PROJECT_SNAKE__`)이며, 다른 이름을 쓰면 `DATABASE_URL` 도 수정한다. Windows 는 `psql` 이 PATH 에 없을 수 있다 — 그때는 PostgreSQL 설치 폴더의 `bin\psql.exe` 로 실행한다.
+
+```powershell
+# Windows · macOS / Linux 공통
+psql -U postgres -c "CREATE DATABASE __PROJECT_SNAKE__"
+psql -U postgres -c "ALTER DATABASE __PROJECT_SNAKE__ SET timezone TO 'Asia/Seoul'"
+```
+
+`.env` 의 `DATABASE_URL` 접속 정보와 `SECRET_KEY`(32 bytes 이상 무작위 값)를 개발 환경에 맞게 설정한다. 기본 관리자를 시드하려면 `DEFAULT_ADMIN_PASSWORD` 도 채운다. `SECRET_KEY` 는 다음 명령으로 생성한다.
+
+```powershell
+# Windows · macOS / Linux 공통 (macOS / Linux 는 python3)
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+3. 의존성을 설치하고 CSS 를 빌드한다. venv 를 만들기 전에 `python --version` 이 `.python-version` 의 버전(CI 가 쓰는 버전)과 같은 계열인지 확인한다 — 시스템 기본 `python` 이 더 새 버전이면 그 버전으로 venv 가 생성된다(Windows 는 `py -3.13 -m venv .venv` 처럼 버전을 지정한다). 기존 `.venv` 를 다른 버전으로 다시 만들 때는 `--clear` 를 붙인다. Tailwind CLI 는 처음 한 번 `.tools/` 에 내려받고 `scripts/tailwind-sha256sums.txt` 의 SHA-256 과 맞을 때만 쓴다.
 
 ```powershell
 # Windows
+python --version
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 .\scripts\tailwind.ps1
@@ -56,6 +73,7 @@ python -m venv .venv
 
 ```bash
 # macOS / Linux
+python3 --version
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
 ./scripts/tailwind.sh
@@ -110,7 +128,7 @@ flowchart LR
 
 - `/admin/*` 는 비로그인이면 로그인 화면으로, 로그인하였지만 관리자가 아니면 403 으로 보낸다. htmx 요청이면 401 과 `HX-Redirect` 로 로그인 화면을 연다.
 - 업로드 파일은 `UPLOAD_DIR`(기본 `uploads/`)에 저장된다. `public/`(본문·배너 이미지)만 `/uploads/public/` 으로 서빙하고, `private/`(공지 첨부)는 다운로드 경로로만 내려간다.
-- 공지 본문은 위지웍 편집기로 쓴다 — 서식·링크·붙여넣기 정리, 이미지 업로드(자르기·회전·크기 조절, 끌어 놓기), YouTube 삽입. 저장 시 서버가 nh3 로 정화한다. JS 가 꺼져 있으면 HTML textarea 와 이미지 코드 받기로 동작한다.
+- 공지 본문은 위지웍 편집기로 쓴다 — 서식·링크·붙여넣기 정리, 이미지 업로드(자르기·회전·크기 조절, 끌어 놓기), YouTube 삽입. 저장 시 서버가 nh3 로 정화한다. JS 가 꺼져 있으면 HTML textarea 그대로 동작한다.
 
 ## 인증과 기본 계정
 
@@ -118,9 +136,16 @@ username/password 로그인을 기본 제공한다. 로그인하면 `auth_sessio
 
 처음 앱을 실행할 때 `admin` 계정이 없고 `SEED_DEFAULT_ADMIN=true` 이면 개발용 관리자 `admin` 이 시드된다. **비밀번호는 고정값이 없다** — 스캐폴드가 무작위로 생성해 `.env` 의 `DEFAULT_ADMIN_PASSWORD` 에 넣고 완료 메시지에 출력한다. 시드는 계정이 없을 때만 동작하므로, 이미 만든 계정의 비밀번호는 바뀌지 않는다. 운영 계정은 CLI 로 만든다.
 
+```powershell
+# Windows — 비밀번호는 프롬프트로 입력
+.\.venv\Scripts\python -m app.cli create-admin --username ops-admin
+.\.venv\Scripts\python -m app.cli set-password --username admin
+```
+
 ```bash
-python -m app.cli create-admin --username ops-admin   # 비밀번호는 프롬프트로 입력
-python -m app.cli set-password --username admin
+# macOS / Linux — 비밀번호는 프롬프트로 입력
+./.venv/bin/python -m app.cli create-admin --username ops-admin
+./.venv/bin/python -m app.cli set-password --username admin
 ```
 
 > [!CAUTION]
@@ -173,7 +198,7 @@ flowchart LR
 |---|---|
 | `app/main.py` | 앱 팩토리 `create_app()` — 설정 검사, CSRF, 보안 헤더, 오류 처리, 블루프린트 등록, 관리자 시드 |
 | `app/dependencies.py` | 요청별 DB 세션, 현재 사용자, `login_required`·`admin_required`, 인증 쿠키 |
-| `app/web/` | 블루프린트(`public`·`auth`·`admin`·`api`·`files`)와 공용 헬퍼(`htmx`·`forms`·`pagination`·`errors`·`security_headers`) |
+| `app/web/` | 블루프린트(`public`·`auth`·`admin`·`api`·`files`)와 공용 헬퍼(`htmx`·`accept`·`forms`·`pagination`·`errors`·`security_headers`) |
 | `app/templates/` | Jinja 템플릿 — `base.html`, 영역별 폴더, htmx 응답용 `partials/` |
 | `app/static/` | `css/input.css`(Tailwind 입력), `js/htmx.min.js`(벤더링), `js/app.js`, `js/editor/`(본문 편집기 ES 모듈) |
 | `app/config.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` | 형제 FastAPI 템플릿과 같은 공통 계층 |
@@ -228,17 +253,19 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 
 ```powershell
 # Windows
+.\.venv\Scripts\python -m pip check
 .\.venv\Scripts\python -m ruff check .
 .\.venv\Scripts\python -m pytest -q
 ```
 
 ```bash
 # macOS / Linux
+./.venv/bin/python -m pip check
 ./.venv/bin/python -m ruff check .
 ./.venv/bin/python -m pytest -q
 ```
 
-테스트는 임시 SQLite 파일 DB 와 임시 업로드 폴더를 쓰므로 PostgreSQL 없이 돈다. 마이그레이션 검증만은 실제 PostgreSQL 에서 한다([`db-migration` 스킬](.claude/skills/db-migration/SKILL.md)).
+CI 와 같은 검사다 — `pytest.ini` 의 `filterwarnings` 가 `DeprecationWarning` 을 실패로 바꾸므로 로컬 `pytest -q` 도 CI 의 `-W error::DeprecationWarning` 과 같은 기준이다. 테스트는 임시 SQLite 파일 DB 와 임시 업로드 폴더를 쓰므로 PostgreSQL 없이 돈다. 마이그레이션 검증만은 실제 PostgreSQL 에서 한다([`db-migration` 스킬](.claude/skills/db-migration/SKILL.md)).
 
 ### CI (GitHub Actions)
 
@@ -272,7 +299,7 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 | Python | 하한 ≥ 3.13, 설치 핀 `3.13.14` | [`scripts/versions.env`](scripts/versions.env) `MIN_PYTHON` · [`.python-version`](.python-version) |
 | Tailwind CSS standalone CLI | `4.3.5` 정확 고정 + SHA-256 검증 | `versions.env` `TAILWIND_VERSION` · [`scripts/tailwind-sha256sums.txt`](scripts/tailwind-sha256sums.txt) |
 | htmx | `2.0.11` 벤더링 | `versions.env` `HTMX_VERSION` · `app/static/js/htmx.min.js` |
-| PostgreSQL | 고정 없음 | 16+ 권장(14 는 2026-11 지원 종료) |
+| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16`) |
 
 ### Python 패키지 — 전부 `==` 정확 고정
 

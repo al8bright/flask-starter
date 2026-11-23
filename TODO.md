@@ -24,7 +24,7 @@
     - 두 스크립트로 `-SkipDb` 생성 → 결과물 동일(.env 비밀값만 다름), 토큰 잔존 0, `.env` 키 = `.env.example`, pytest 163 통과, ruff check 통과(2026-11-23)
     - 거부 경로 확인: 잘못된 이름, 템플릿 안 대상, 비어 있지 않은 대상(비대화형)
   - [x] `skeleton/scripts/bootstrap.*` — Python 만 확인·설치(Node·pnpm 제거)
-    - 형제 `bootstrap.sh` 버그 수정: Git Bash + pyenv-win 의 `pyenv install --list` 가 CRLF·들여쓰기 없이 나와 3.13.x 를 못 찾았다(`tr -d '\r'`, 앞 공백 선택). 형제 저장소에는 미반영
+    - 형제 `bootstrap.sh` 버그 수정: Git Bash + pyenv-win 의 `pyenv install --list` 가 CRLF·들여쓰기 없이 나와 3.13.x 를 못 찾았다(`tr -d '\r'`, 앞 공백 선택)
   - [x] skeleton 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`PLAN.md`·`docs/README.md`·`.claude/skills/`(5종)
   - [x] 루트 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`CHANGELOG.md`·`docs/README.md`·`.gitignore`
     - [x] 문서의 `ARCHITECTURE.md §N` 참조를 6단계 결과의 절 주제와 맞추었다
@@ -36,22 +36,22 @@
   - [x] 웹 테스트(Flask `test_client`) — 전체 163건 통과, ruff 통과
   - [x] `skeleton/.github/workflows/ci.yml`(생성 프로젝트 CI), 루트 `template-ci.yml`, 두 `check-ps1-syntax.ps1`, PR 템플릿
   - [x] `tools/check_projects.py` 평면 구조 대응 + `tools/check_common_layer.py`(원본이 비공개라 CI 대신 로컬 실행) — 단위 테스트 28건 통과
-  - [ ] 첫 push 후 GitHub Actions 결과 확인 — 특히 `migrations-postgres`(PostgreSQL 첫 검증)·`scaffold-posix` macOS·`scaffold-windows`
+  - [x] 첫 push 후 GitHub Actions 결과 확인 — Template CI 9개 작업(`migrations-postgres`·`scaffold-posix` Ubuntu·macOS·`scaffold-windows` 포함) 통과(실행 45156460329·45162081442)
 - [x] 6. `skeleton/ARCHITECTURE.md` — 형제 문서를 기준으로 §0~§22 절 번호를 유지하고 Flask 판으로 다시 작성하였다
   - §13(화면 구조 — Jinja·htmx)·§14(화면 인증 흐름 — 쿠키·CSRF·권한)는 형제 문서와 절 주제가 다르다
   - [ ] 서술이 코드와 어긋나지 않는지 화면·htmx 를 바꿀 때마다 확인한다(브라우저 미검증 항목은 아래 목록)
 
 ## 미검증·확인 항목
 
-- [x] 공통 계층 Windows 시각대 버그 — 정책을 「OS 와 무관하게 KST」로 바꾸고 원본(`fastapi-react-pg-starter` `d93f04c`)에서 고친 뒤 다시 복사하였다(`now()` 를 고정 오프셋 UTC+9 로 계산, Windows 에서 `TZ` 미주입, 로그 시각 KST). `fastapi-nextjs-pg-starter`(`a94a56e`)에도 반영. nuxt·svelte 형제는 작업 환경에 없어 미반영
+- [x] 공통 계층 Windows 시각대 버그 — 정책을 「OS 와 무관하게 KST」로 바꾸고 원본(`fastapi-react-pg-starter`)에서 고친 뒤 다시 복사하였다(`now()` 를 고정 오프셋 UTC+9 로 계산, Windows 에서 `TZ` 미주입, 로그 시각 KST)
 - [x] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — Docker `postgres:16`(16.15)에서 통과, `alembic check` 차이 없음. 앱 연결의 세션 시각대 `Asia/Seoul`, 헬스 체크·로그인·관리자 화면·공지 작성(본문 정화)·htmx 검색 partial 확인(2026-11-23)
 - [x] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 원인 확인: 생성된 DDL 은 `DEFAULT ''` 로 정상이고, Alembic 1.20.1 `SQLiteImpl.compare_server_default` 의 따옴표 제거 정규식(`'(.+)'`)이 빈 문자열 `''` 을 벗기지 못해 DB 에서 읽은 값 `''` 과 모델의 빈 문자열이 다르다고 판정한다. 마이그레이션·모델 문제가 아니므로 고치지 않는다. PostgreSQL 에서는 `alembic check` 가 차이 없음으로 통과하였다
-- [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증(2026-11-23 재시도도 미연결). HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)과 템플릿 정적 검사(`style=` 속성·인라인 `<script>`·`on*=` 속성·`hx-on`·`js:`·`<style>` 없음)는 확인
+- [ ] 브라우저 실동작 — 편집기 시나리오(27개)와 기본 화면(데스크톱·모바일, 밝은·어두운 모드)은 Chrome headless 로 CSP 위반 0건을 확인하였다. htmx 3종(검색·행 저장·배너 이동)을 실제로 조작하는 확인은 미검증. HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)과 템플릿 정적 검사(`style=` 속성·인라인 `<script>`·`on*=` 속성·`hx-on`·`js:`·`<style>` 없음)는 확인
 - [x] 공지 본문 편집기 — 형제 자체 편집기를 바닐라 JS ES 모듈로 이식하였다(1·2단계, nh3 정화 유지). Chrome headless 시나리오 27개·CSP 위반 0건([`docs/reviews/2026-11-23-wysiwyg-editor.md`](docs/reviews/2026-11-23-wysiwyg-editor.md) 「후속 반영」)
   - [ ] 실제 한글 IME 입력·Firefox·Safari·터치 기기 조작은 미검증
 - [x] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic) — `scaffold.ps1`·`scaffold.sh` 를 설치 포함으로 실행해 두 DB 모두 시각대 `Asia/Seoul`·리비전 `0004_notices_banners`, 생성물 동일(`.env`·산출물 제외), `.env` 활성 키 = `.env.example`. 접속 불가(빈 포트)면 두 판 모두 DB 단계를 건너뛰고 수동 안내 후 종료 코드 2
   - [ ] 대화형 입력(접속 정보 재입력 1회)은 미검증 — 이 환경은 표준 입력이 터미널이 아니다
-- [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증
+- [ ] `bootstrap.sh` 를 macOS/Linux 에서 실행 — `scaffold.sh`·`tailwind.sh` 는 CI `scaffold-posix`(Ubuntu·macOS)에서 통과. bootstrap 의 설치 경로(pyenv·`--with-postgres`)는 미검증
 - [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
 - [x] bcrypt 72-byte 가드 테스트 — `tests/test_passwords.py` 로 추가(로그인 422·72 bytes 경계 로그인·`hash_password` 거부·`verify_password` False·최소 길이·미존재 계정 응답 동일·더미 해시 비용). 생성물 pytest 172건 통과
 - [x] `requirements.txt` 핀 검토 — 화면 동작을 좌우하는 전이 의존성 jinja2 3.1.6·markupsafe 3.0.4·itsdangerous 2.2.0 을 직접 고정(click·blinker 는 미고정 유지). `--uploaded-prior-to P1D` 설치·`pip check`·pytest 172건·`pip-audit` 통과

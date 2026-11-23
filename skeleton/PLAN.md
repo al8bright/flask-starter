@@ -7,12 +7,13 @@
 
 > 앱 골격, Alembic 초기 마이그레이션, 인증 흐름, 공지·배너·관리자 화면, 테스트는 이미 만들어져 있다. ⛔ 다시 만들지 않는다. 아래는 동작 확인이다.
 
-- [ ] `AGENTS.md` 「프로젝트 개요」의 `<…>` 자리표시를 채운다
-- [ ] 개발 서버가 뜬다(`README.md` 빠른 시작) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 200
-- [ ] CSS 가 빌드돼 화면에 스타일이 적용된다(`app/static/css/app.css` — 없으면 `scripts/tailwind.*` 실행)
+- [ ] `AGENTS.md` 「프로젝트 개요」의 `<…>` 자리표시를 채운다 — 비어 있으면 첫 작업 전에 사용자에게 묻는다
+- [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`README.md` 빠른 시작) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 `{"db": "ok", …}` 를 돌려준다(DB 에 접근할 수 없으면 503)
 - [ ] 기본 관리자(`admin`, 비밀번호는 `.env` 의 `DEFAULT_ADMIN_PASSWORD`)로 로그인되고 관리자 대시보드에 「DB 정상」과 마이그레이션 리비전이 보인다
-- [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다 — 공지 검색·사용자 행 저장·배너 순서 변경(htmx 예제)이 동작한다
-- [ ] 로컬 검증 통과 — `ruff check .`·`pytest -q` (`pr-workflow` 스킬)
+- [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다 — 공지 검색·사용자 행 저장·배너 순서 변경(htmx 예제)과 공지 작성 화면 편집기(이미지 업로드·붙여넣기)가 동작한다
+- [ ] 로컬 검증 통과 — `pip check`·`ruff check .`·`pytest -q` (`pr-workflow` 스킬)
+- [ ] 첫 push 후 CI 가 통과한다
+- [ ] 첫 기능을 아래 1번에 적고 실패 테스트 하나부터 시작한다 (`ARCHITECTURE.md` §18)
 
 ## 1. <첫 기능>
 
@@ -40,8 +41,8 @@
 
 ### 화면
 
-- [ ] **공지 본문 편집기**: 지금은 HTML textarea 다. 리치 텍스트 편집기를 들이려면 CSP(`script-src 'self'`)에 맞게
-      스크립트를 `app/static/js/` 에 벤더링하고, 저장 시 서버의 nh3 정화(`core/sanitize.py`)는 그대로 둔다.
+- [ ] **공지 본문 편집기 고도화**: 위지웍 편집기(`app/static/js/editor/`)는 이미 있다. 기능을 더할 때는 직렬화(`editor/media-html.js`)·
+      서버 정화(`app/core/sanitize.py` 의 nh3 허용 목록)·출력 계약 테스트(`tests/test_editor.py`)를 함께 수정한다.
 
 ### 배포 전환
 

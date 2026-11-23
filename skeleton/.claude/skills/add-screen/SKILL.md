@@ -12,8 +12,8 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 | 위치 | 용도 |
 |---|---|
-| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block content %}`, 상단 내비, 화면 골격 `{% block shell %}` |
-| `app/templates/admin/_layout.html` | 관리자 골격(왼쪽 메뉴 레일) — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다. 메뉴 항목은 이 파일의 목록에 추가한다 |
+| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), fetch 용 `<meta name="csrf-token">` |
+| `app/templates/admin/_layout.html` | 관리자 골격(왼쪽 메뉴 레일) — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다. 메뉴 항목은 이 파일의 `nav` 목록에 `(endpoint, 이름, 활성 판정 키)` 로 추가한다 — 키가 현재 endpoint 이름에 들어 있으면 활성이므로, 다른 메뉴의 endpoint 이름에 들어가지 않는 고유 문자열로 고른다 |
 | `app/templates/partials/alerts_region.html` | `#alerts`(flash·오류 알림) — 새 골격을 만들면 이것을 한 번 넣는다 |
 | `app/templates/<영역>/<화면>.html` | 전체 페이지 |
 | `app/templates/partials/<이름>.html` | htmx 가 교체할 조각. 전체 페이지는 같은 partial 을 `{% include %}` 한다 — 같은 마크업을 두 번 쓰지 않는다 |
@@ -28,6 +28,7 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 - 성공하면 `flash(메시지, "success")` + `redirect()`(PRG), 검증 실패면 같은 템플릿을 입력값·오류와 함께 **422** 로 렌더링한다.
 - 삭제·폐기처럼 되돌릴 수 없는 폼에는 `data-confirm="<확인 문구>"` 를 붙인다(`app/static/js/app.js` 가 확인을 받는다). ⛔ `onclick="return confirm(...)"` 은 CSP 에 막힌다.
 - 링크로 상태를 바꾸지 않는다(GET 은 조회 전용). 로그아웃도 POST 폼이다.
+- 스크립트가 fetch 로 POST 해야 하면(예: `js/editor/upload.js`) `<meta name="csrf-token">` 값을 `X-CSRFToken` 헤더로 보내고 `Accept: application/json` 을 지정한다. 뷰는 같은 POST 경로에서 `app/web/accept.py` 의 `wants_json()` 으로 JSON 응답을 고른다(§13). ⛔ 화면용 JSON API 를 따로 만들지 않는다.
 
 ## 3. htmx 로 일부만 바꾸기
 
