@@ -32,6 +32,11 @@ description: __PROJECT_NAME__ 에서 변경을 커밋·push 할 때 사용. 단�
 - 문서만 고쳤으면 생략 가능하다.
 - DB 스키마를 바꿨으면 PostgreSQL 에서 `alembic upgrade head` → `alembic check` 도 확인한다([db-migration]).
 
+## push 후 CI
+- push·PR 마다 `.github/workflows/ci.yml` 이 Ubuntu·Windows 테스트, CSS 빌드, PostgreSQL 마이그레이션 왕복, PowerShell 5.1 구문 검사, `pip-audit`(경고성)를 돌린다. 잡 목록은 `README.md` 「CI」.
+- CI 는 사후 안전망이다. 로컬 검증을 CI 로 대신하지 않는다. CI 가 실패하면 되돌리거나 즉시 고친다.
+- `.ps1` 을 고쳤으면 push 전에 `powershell -NoProfile -ExecutionPolicy Bypass -File .\.github\scripts\check-ps1-syntax.ps1` 로 5.1 파싱을 확인한다.
+
 ## 커밋 메시지 (§19)
 - **형식**: `[Category] <type>: <요약(한글, 50자 이내, 현재형)>`
 - **Category**: `[Structural]`(구조 변경, 로직 불변) / `[Behavioral]`(기능·버그·로직 변경)

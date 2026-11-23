@@ -1,0 +1,305 @@
+name: Template CI
+
+# 이 워크플로는 "스캐폴드 스크립트 자체"와 그 생성물을 검증한다.
+# skeleton/.github/workflows/ci.yml 은 *생성된 프로젝트* 용이라 템플릿 리포에서는 돌지 않는다.
+# 공통 계층(fastapi-react-pg-starter)과의 동일성은 원본이 비공개 저장소라 여기서 검사하지 않는다
+# — 로컬에서 tools/check_common_layer.py 로 확인한다(AGENTS.md 「공통 계층」).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 최소 권한 — 미선언이면 리포/조직 설정에 따라 GITHUB_TOKEN 이 read-write 로 발급된다.
+permissions:
+  contents: read
+
+# 같은 PR 에 연속 push 하면 이전 실행을 취소한다. main push 는 취소하지 않는다(커밋마다 결과가 남아야 회귀 지점을 찾는다).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ── 1. PowerShell 구문 검사 ──────────────────────────────────────────────
+  # Windows 기본 셸이 5.1 이므로 PS7 전용 문법(??, ?:, &&/||)이 하나라도 있으면 파싱 단계에서 통째로 실패한다.
+  powershell-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check .ps1 syntax with Windows PowerShell 5.1
+        shell: powershell # pwsh 로 바꾸면 PS7 전용 문법을 놓친다
+        # ⛔ 검사 로직을 여기 인라인으로 옮기지 않는다(BOM 없는 임시 파일 → 5.1 이 한글을 ANSI 로 읽는다).
+        run: .\.github\scripts\check-ps1-syntax.ps1
+
+  # ── 2. bash 구문 검사 + ShellCheck ───────────────────────────────────────
+  bash-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: bash -n (모든 .sh)
+        run: |
+          failed=0
+          while IFS= read -r f; do
+            if bash -n "$f"; then
+              echo "OK  $f"
+            else
+              echo "::error file=$f::bash 구문 오류"
+              failed=1
+            fi
+          done < <(find . -path ./.git -prune -o -name '*.sh' -print)
+          exit $failed
+      - name: ShellCheck (게이트 — warning 이상이면 실패)
+        # SC2088(따옴표 안의 ~ 는 확장되지 않음)은 사용자에게 보여 주는 안내 문구의 의도된 리터럴이라 제외한다.
+        run: shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh
+
+  # ── 3. 벤더링 자산 버전 정합 ─────────────────────────────────────────────
+  # versions.env 의 기록과 실제 파일이 어긋나면(htmx 만 교체, 해시 파일만 교체) 문서·점검 도구가 틀린 버전을 보고한다.
+  vendored-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: htmx · Tailwind 버전이 versions.env 와 같은지 확인
+        working-directory: skeleton
+        run: |
+          get() { grep -E "^$1=" scripts/versions.env | cut -d= -f2 | tr -d '\r'; }
+          htmx="$(get HTMX_VERSION)"; tw="$(get TAILWIND_VERSION)"
+          actual="$(grep -oE 'version:"[0-9][^"]*"' app/static/js/htmx.min.js | head -1 | cut -d'"' -f2)"
+          failed=0
+          if [ "$actual" != "$htmx" ]; then
+            echo "::error file=skeleton/app/static/js/htmx.min.js::htmx.min.js 는 $actual 인데 HTMX_VERSION 은 $htmx 다"
+            failed=1
+          fi
+          if ! head -1 scripts/tailwind-sha256sums.txt | grep -q "v$tw "; then
+            echo "::error file=skeleton/scripts/tailwind-sha256sums.txt::첫 줄의 버전이 TAILWIND_VERSION($tw)과 다르다"
+            failed=1
+          fi
+          exit $failed
+
+  # ── 4. POSIX 스캐폴드 실제 실행 (생성물까지 검증) ────────────────────────
+  scaffold-posix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: skeleton/.python-version
+
+      - name: Run scaffold.sh
+        run: bash ./scaffold.sh --name CiDemo --target "$RUNNER_TEMP/CiDemo" --skip-db --skip-install < /dev/null
+
+      - name: 템플릿 리포가 오염되지 않았는지 확인
+        # bootstrap 이 skeleton/.python-version 을 덮어쓰거나 산출물이 skeleton/ 에 생기는 회귀를 막는다.
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::스캐폴드 실행이 템플릿 리포를 변경하였다:"
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: 잔여 토큰이 없는지 확인
+        run: |
+          if grep -rl '__PROJECT_NAME__\|__PROJECT_SNAKE__' "$RUNNER_TEMP/CiDemo"; then
+            echo "::error::치환되지 않은 토큰이 남아 있다"
+            exit 1
+          fi
+
+      - name: .env 키 집합이 .env.example 과 같은지 확인
+        # 스캐폴드가 .env 를 직접 쓰므로 .env.example 에 키를 추가하고 두 스크립트를 빠뜨리는 회귀를 막는다.
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: |
+          keys() { grep -oE '^[A-Z_][A-Z0-9_]*=' "$1" | sort -u; }
+          if ! diff <(keys .env.example) <(keys .env); then
+            echo "::error::.env 와 .env.example 의 키가 다르다(< .env.example, > .env)"
+            exit 1
+          fi
+
+      - name: 생성물 검증 (pip check + ruff + pytest)
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: |
+          pip install -r requirements.txt
+          pip check
+          ruff check .
+          pytest -q -W error::DeprecationWarning
+
+      - name: 생성물 CSS 빌드 (Tailwind 내려받기 · SHA-256 검증)
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: |
+          bash scripts/tailwind.sh
+          test -s app/static/css/app.css
+
+  # ── 5. Windows 스캐폴드 실제 실행 + scaffold.sh 와 생성물 동일성 ─────────
+  # 구문 검사만으로는 런타임 오류·종료 코드·두 스크립트의 동작 차이를 잡지 못한다.
+  scaffold-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: skeleton/.python-version
+
+      - name: Run scaffold.ps1 (Windows PowerShell 5.1)
+        shell: powershell
+        # ⛔ 이 run 블록에는 ASCII 만 쓴다 — Actions 가 BOM 없는 임시 파일로 실행해 5.1 이 한글을 깨뜨린다.
+        # 별도 프로세스로 실행해 이 스텝의 $ErrorActionPreference=stop 이 스크립트에 새지 않게 하고,
+        # 스크립트가 끝난 뒤 호출자가 보는 $LASTEXITCODE 가 0 인지 단언한다.
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& .\scaffold.ps1 -Name CiDemo -Target '$env:RUNNER_TEMP\ps' -SkipDb -SkipInstall; exit `$LASTEXITCODE"
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Write-Output "::error::scaffold.ps1 exited with code $code (expected 0)"
+            exit 1
+          }
+
+      - name: Run scaffold.sh (Git Bash, same runner)
+        shell: bash
+        run: |
+          # Windows 러너의 python3 는 Store 별칭(실행 불가)일 수 있다 — 하한 검사가 bootstrap 으로 빠지지 않게 python 으로 잇는다.
+          if ! python3 --version >/dev/null 2>&1; then
+            shim="$(cygpath -u "$RUNNER_TEMP")/py3shim"
+            mkdir -p "$shim"
+            printf '#!/bin/sh\nexec python "$@"\n' > "$shim/python3"
+            chmod +x "$shim/python3"
+            export PATH="$shim:$PATH"
+          fi
+          bash ./scaffold.sh --name CiDemo --target "$(cygpath -u "$RUNNER_TEMP")/sh" --skip-db --skip-install < /dev/null
+
+      - name: 템플릿 리포가 오염되지 않았는지 확인
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::스캐폴드 실행이 템플릿 리포를 변경하였다:"
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: 잔여 토큰이 없는지 확인
+        shell: bash
+        run: |
+          t="$(cygpath -u "$RUNNER_TEMP")"
+          if grep -rl '__PROJECT_NAME__\|__PROJECT_SNAKE__' "$t/ps" "$t/sh"; then
+            echo "::error::치환되지 않은 토큰이 남아 있다"
+            exit 1
+          fi
+
+      - name: scaffold.ps1 과 scaffold.sh 생성물 동일성 (.env 제외)
+        # .env 는 SECRET_KEY·관리자 비밀번호가 실행마다 무작위라 비교에서 뺀다. 나머지는 바이트 단위로 같아야 한다.
+        shell: bash
+        run: |
+          t="$(cygpath -u "$RUNNER_TEMP")"
+          if ! diff -r -x .env "$t/ps" "$t/sh"; then
+            echo "::error::scaffold.ps1 과 scaffold.sh 의 생성물이 다르다 — 두 스크립트의 동작을 맞춘다"
+            exit 1
+          fi
+
+      - name: 생성물 검증 (Windows — pip check + ruff + pytest)
+        # 경로·인코딩·시각대처럼 Windows 에서만 드러나는 실패를 템플릿 단계에서 잡는다.
+        shell: bash
+        working-directory: ${{ runner.temp }}/ps
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip check
+          python -m ruff check .
+          python -m pytest -q -W error::DeprecationWarning
+
+      - name: 생성물 CSS 빌드 (tailwind.ps1, Windows PowerShell 5.1)
+        shell: powershell
+        working-directory: ${{ runner.temp }}/ps
+        run: |
+          .\scripts\tailwind.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if (-not (Test-Path app\static\css\app.css)) { Write-Output "::error::app.css not built"; exit 1 }
+
+  # ── 6. PostgreSQL 마이그레이션 왕복 (생성물 기준) ────────────────────────
+  # 스캐폴드의 DB 단계(psql CREATE DATABASE + alembic)는 실패해도 경고만 내고 계속하므로 게이트가 못 된다.
+  # 그래서 --skip-db 로 생성하되 --db-* 로 서비스 컨테이너 접속 정보를 넘겨 .env 의 DATABASE_URL 을
+  # 만들게 하고, alembic 은 이 잡이 직접 실행해 실패를 그대로 드러낸다(.env 생성 경로도 함께 검증된다).
+  migrations-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Seoul
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cidemo
+          TZ: Asia/Seoul
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: skeleton/.python-version
+
+      - name: Run scaffold.sh (DB 접속 정보만 주입)
+        run: >-
+          bash ./scaffold.sh --name CiDemo --target "$RUNNER_TEMP/CiDemo" --skip-db --skip-install
+          --db-host localhost --db-port 5432 --db-user postgres --db-password postgres --db-name cidemo < /dev/null
+
+      - name: 의존성 설치
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: |
+          pip install -r requirements.txt
+          pip check
+
+      - name: Alembic 왕복 (upgrade → check → downgrade base → upgrade → check)
+        # DATABASE_URL 은 스캐폴드가 만든 .env 에서 읽는다(환경 변수로 덮지 않는다).
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: |
+          alembic upgrade head
+          alembic check
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
+
+      - name: pytest (TZ=Asia/Seoul, 생성물 .env 존재 상태)
+        # 테스트 DB 는 conftest 가 SQLite 로 고정한다 — KST 프로세스 시각대와 실제 .env 가 있는 상태에서 한 번 더 확인한다.
+        working-directory: ${{ runner.temp }}/CiDemo
+        run: pytest -q -W error::DeprecationWarning
+
+  # ── 7. 의존성 취약점 게이트 (차단) ───────────────────────────────────────
+  # 생성 프로젝트 CI 의 audit 잡은 경고성이지만, 템플릿은 알려진 취약 버전을 새 프로젝트에 퍼뜨리지 않도록 차단한다.
+  # ⚠️ 새 CVE 는 코드 변경 없이도 공개되므로 이 잡은 아무 커밋 없이 빨개질 수 있다 — 그때는 핀을 상향한다
+  #    (AGENTS.md 「버전 상향」. 공통 계층 패키지는 원본 저장소와 같은 핀을 유지한다).
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: skeleton/.python-version
+      - name: pip-audit (requirements.txt)
+        run: |
+          pip install pip-audit==2.10.1
+          pip-audit -r skeleton/requirements.txt
+
+  # ── 8. 점검 도구(tools/) 단위 테스트 ─────────────────────────────────────
+  # 표준 라이브러리 unittest 만 쓰므로 설치가 없다. -B 로 __pycache__ 를 남기지 않는다.
+  tools-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: skeleton/.python-version
+      - name: unittest
+        run: python -B -m unittest discover -s tools -v

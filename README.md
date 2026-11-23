@@ -8,11 +8,13 @@ flask-starter/
 ├── scaffold.ps1            # ★ Windows (PowerShell) 스캐폴드
 ├── scaffold.sh             # ★ macOS / Linux / Git Bash 스캐폴드 — 동작 동일
 ├── LICENSE                 # MIT
+├── .github/                # 이 템플릿 저장소 자체의 CI (template-ci.yml)
 ├── README.md               # (이 파일)
 ├── AGENTS.md / CLAUDE.md   # 이 템플릿 저장소 작업용 AI 에이전트 지침 (생성 프로젝트용은 skeleton/ 안)
 ├── CHANGELOG.md            # 템플릿 변경 이력
 ├── TODO.md                 # 재개발 작업 계획 (작업 중에만 둔다)
 ├── docs/                   # 템플릿 문서 — 검토 기록(reviews/), 스캐폴드 시 복사 안 됨
+├── tools/                  # 생성 프로젝트 점검·공통 계층 동일성 검사 — 스캐폴드 시 복사 안 됨
 └── skeleton/               # 새 프로젝트가 받는 골격 전체 (평면 구조)
     ├── README.md           # 사람용 개요·실행 방법
     ├── AGENTS.md           # AI 에이전트 공통 지침 (Codex·Cursor 등 공용)
@@ -21,6 +23,7 @@ flask-starter/
     ├── docs/               # 프로젝트 고유 문서 (PRD·유저 플로우·기획서 등)
     ├── .claude/skills/     # AI 작업 스킬 5종
     ├── .python-version / .env.example / .gitignore / .gitattributes
+    ├── .github/workflows/ci.yml      # 생성된 프로젝트의 CI
     ├── requirements.txt / pyproject.toml / pytest.ini / alembic.ini
     ├── scripts/            # bootstrap · tailwind (sh / ps1) · versions.env · tailwind-sha256sums.txt
     ├── app/                # Flask 앱 — web/(뷰) · templates/ · static/ + 공통 계층(config·core·db·models·schemas·services)
@@ -68,6 +71,7 @@ mindmap
     자동화
       scaffold.sh / scaffold.ps1
       런타임 부트스트랩
+      GitHub Actions CI
       AI 개발 스킬 5종
     고정 규칙
       DB는 Alembic으로만
@@ -194,7 +198,38 @@ chmod +x scaffold.sh          # 최초 1회 (실행 권한이 없을 때)
 `skeleton/app/` 의 `config.py`·`cli.py`·`core/`·`db/`·`models/`·`schemas/`·`services/` 와 `skeleton/alembic/` 은
 형제 템플릿 `fastapi-react-pg-starter`(비공개 저장소)의 `skeleton/backend/` 에서 파일 그대로 가져왔다.
 이 저장소는 원본을 **단방향으로 추적**하고 공통 파일을 직접 고치지 않는다 — Flask 전용 코드는 `app/web/`·`app/dependencies.py`·`app/main.py` 에만 있다.
-그래서 서비스·모델 규칙과 DB 스키마가 형제 템플릿과 같고, 한쪽에서 만든 데이터를 다른 쪽 화면으로 옮기기 쉽다. 동일성 확인 명령은 [`AGENTS.md`](AGENTS.md) 「공통 계층」에 있다.
+그래서 서비스·모델 규칙과 DB 스키마가 형제 템플릿과 같고, 한쪽에서 만든 데이터를 다른 쪽 화면으로 옮기기 쉽다.
+
+동일성은 [`tools/check_common_layer.py`](tools/check_common_layer.py) 로 확인한다. 원본이 비공개 저장소라 템플릿 CI 에서는 돌지 않으므로, 원본을 이 저장소 옆에 두고 로컬에서 실행한다.
+
+```powershell
+python -B tools\check_common_layer.py          # 기본 원본 위치: ..\fastapi-react-pg-starter (다르면 --source)
+```
+
+종료 코드는 `0` 같음, `1` 차이 있음(파일 목록 출력), `2` 원본을 찾지 못함이다. 줄바꿈(CRLF/LF) 차이는 무시한다.
+
+## 생성 프로젝트 점검
+
+이 스타터로 만든 프로젝트를 여러 개 운영하면 같은 보안 업데이트를 따로 하거나, 한쪽만 스타터 수정을 놓치기 쉽다.
+[`tools/check_projects.py`](tools/check_projects.py) 는 스타터(`skeleton/`)와 프로젝트들을 나란히 놓고 한 화면(마크다운)에 모은다.
+읽기 전용이며 표준 라이브러리만 쓰므로 설치할 것이 없다(Python 3.13).
+
+```powershell
+python tools\check_projects.py ..\project-a ..\project-b             # 버전 · 공통 파일
+python tools\check_projects.py ..\project-a ..\project-b --audit     # + 보안 감사(네트워크)
+python tools\check_projects.py --audit --files --output 점검.md      # 경로는 tools\projects.local.txt 에서
+```
+
+| 절 | 내용 |
+|---|---|
+| 1. 런타임·도구 | `versions.env`(Python 하한·Tailwind·htmx) · `.python-version` · 벤더링한 `htmx.min.js` 안의 실제 버전 |
+| 2. Python 핀 | `requirements.txt` — 값이 서로 다르면 `≠` |
+| 3. 공통 파일 | `skeleton/` 과 같은 경로 파일의 같음 · 다름(바뀐 줄 수) · 없음. 치환 토큰은 프로젝트의 표시 이름(`app/main.py` 의 `PROJECT_NAME`)과 snake 이름(`app/dependencies.py` 의 쿠키 이름)으로 바꿔 비교한다. 화면 템플릿(`app/templates/`)과 프로젝트 문서(README·PLAN)는 `--files` 일 때만 표로 낸다 |
+| 4. 보안 감사(`--audit`) | 프로젝트 `.venv` 의 설치 목록(없으면 requirements 핀)을 [OSV](https://osv.dev) 로 조회한다. 취약점이 있으면 종료 코드 1 |
+
+- 경로를 주지 않으면 `tools/projects.local.txt`(한 줄에 경로 하나, `#` 주석)를 읽는다. 개인 경로라 `.gitignore` 로 커밋하지 않는다.
+- 보안 감사는 패키지 이름과 버전만 `api.osv.dev` 에 보낸다.
+- 버전을 맞출지, 스타터 변경을 반영할지는 이 보고서를 보고 사람이 정한다(자동으로 고치지 않는다).
 
 ## 문제 해결
 
@@ -231,7 +266,19 @@ chmod +x scaffold.sh          # 최초 1회 (실행 권한이 없을 때)
 - `scaffold.ps1`(PowerShell 5.1)·`scaffold.sh`(Git Bash)로 `-SkipDb` 생성 → 두 결과물이 비밀값을 빼고 같음, 잔여 토큰 없음, `.env` 키 집합 = `.env.example`
 - 생성물: pytest `163 passed`, `ruff check` 경고 `0`, Tailwind CLI 내려받기·SHA-256 검증·빌드 성공
 - 임시 프로젝트에서 SQLite 로 `alembic upgrade head` 성공, waitress 로 기동해 공개·관리자 화면 HTTP 200, 로그인, CSP 헤더 확인
-- 미검증: PostgreSQL 대상 마이그레이션 왕복과 스캐폴드 DB 단계(PostgreSQL 미기동), 브라우저 실동작(htmx 교체·콘솔 CSP 위반 없음), macOS/Linux 실행, 템플릿 CI(아직 없음)
+- 정적 검사: 모든 `.ps1` 이 PowerShell 5.1 파싱·PS7 토큰 검사 통과, 모든 `.sh` 가 `bash -n`·ShellCheck 0.11.0(`-S warning`) 통과, 공통 계층 동일, 점검 도구 단위 테스트 `28 passed`
+- 미검증: PostgreSQL 대상 마이그레이션 왕복과 스캐폴드 DB 단계(로컬 PostgreSQL 접속 정보 없음), 브라우저 실동작(htmx 교체·콘솔 CSP 위반 없음), macOS/Linux 실행, GitHub Actions 실제 실행(push 전)
+
+자동 검증은 두 워크플로가 담당한다.
+
+- [`skeleton/.github/workflows/ci.yml`](skeleton/.github/workflows/ci.yml) — **생성된 프로젝트**용.
+  `app`(Ubuntu·Windows, ruff + pytest) / `css`(Ubuntu `tailwind.sh`·Windows `tailwind.ps1`) / `migrations`(`postgres:16` 서비스 컨테이너로 Alembic 왕복) /
+  `powershell-syntax`(PowerShell 5.1 구문 검사) / `audit`(`pip-audit`, 경고성)
+- [`.github/workflows/template-ci.yml`](.github/workflows/template-ci.yml) — **이 템플릿 저장소**용.
+  `.ps1`·`.sh` 구문 검사(ShellCheck 게이트), `versions.env` 와 벤더링 자산(htmx·Tailwind 해시 파일)의 버전 정합,
+  Ubuntu·macOS 에서 `scaffold.sh` 를 실제로 실행해 **템플릿 오염·잔여 토큰·`.env` 키 집합을 회귀 검사**하고 생성물의 pytest·CSS 빌드를 돌린다(`scaffold-posix`).
+  Windows 에서는 `scaffold.ps1`(PowerShell 5.1)과 `scaffold.sh`(Git Bash) 생성물이 같은지 비교하고 생성물 pytest·`tailwind.ps1` 을 돌린다(`scaffold-windows`).
+  생성물을 `postgres:16` 에 붙여 Alembic 왕복을 하고(`migrations-postgres`), `pip-audit` 를 차단 단계로 실행하며(`dependency-audit`), 점검 도구 단위 테스트를 돌린다(`tools-test`).
 
 ## 라이선스와 기여
 

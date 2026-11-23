@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-11-23 — 검증 자동화: CI·점검 도구
+
+### Added (추가)
+
+- **생성 프로젝트 CI** `skeleton/.github/workflows/ci.yml`: `app`(Ubuntu·Windows, `pip check`·`ruff check`·`pytest -W error::DeprecationWarning`), `css`(Ubuntu `tailwind.sh`·Windows PowerShell 5.1 `tailwind.ps1`), `migrations`(`postgres:16` Alembic 왕복), `powershell-syntax`, `audit`(`pip-audit`, 경고성). PR 템플릿과 PS 5.1 구문 검사 스크립트(`check-ps1-syntax.ps1`, 형제 템플릿과 같은 검사)를 함께 넣었다.
+- **템플릿 CI** `.github/workflows/template-ci.yml`: PS·bash 구문 검사(ShellCheck 게이트, `tailwind.sh` 포함), `versions.env` 와 벤더링 자산(htmx·Tailwind 해시 파일)의 버전 정합, Ubuntu·macOS 스캐폴드 실행과 생성물 pytest·CSS 빌드, Windows 에서 두 스캐폴드 생성물 동일성·생성물 pytest·`tailwind.ps1`, PostgreSQL 마이그레이션 왕복, `pip-audit`(차단), 점검 도구 단위 테스트.
+- **점검 도구** `tools/`: `check_projects.py`(형제 템플릿 도구를 평면 구조에 맞춘 판 — 런타임·htmx 실제 버전, Python 핀, 공통 파일, OSV 감사)와 `check_common_layer.py`(공통 계층이 원본과 같은지 — 원본이 비공개 저장소라 CI 대신 로컬에서 실행). AGENTS.md 의 diff 반복문을 이 도구로 대체하였다.
+
+### 검증
+
+- 점검 도구 단위 테스트 28건 통과(Python 3.13), 도구 코드 ruff(`E·F·I·B`) 경고 0, `check_common_layer.py` 동일.
+- 임시 스캐폴드(`Demo App`)에 `check_projects.py` → 공통 파일 119개 모두 같음(토큰 치환 재현 확인). `scaffold.ps1`·`scaffold.sh` 생성물은 `.github/` 를 포함해 비밀값을 빼고 같음.
+- `check-ps1-syntax.ps1` 을 저장소(5개)와 생성물(3개)에서 PowerShell 5.1 로 실행해 통과. ShellCheck 0.11.0(`-S warning -e SC2088`)과 `bash -n` 이 세 `.sh` 에서 통과. 벤더링 자산 정합 스크립트를 로컬에서 실행해 통과.
+- 미검증: 두 워크플로의 GitHub Actions 실제 실행(push 전), PostgreSQL 마이그레이션 왕복(로컬 PostgreSQL 접속 정보 없음 — CI `migrations` 잡이 처음 확인한다).
+
 ## 2026-11-23 — 재개발: FastAPI 형제 템플릿 구조로 전환
 
 진행 계획과 남은 단계는 [`TODO.md`](TODO.md) 에 있다. 재개발 전 상태(코드 생성기 방식)는 `legacy-scaffolder` 태그에 있다.

@@ -179,6 +179,7 @@ flowchart LR
 | `app/config.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/` | 형제 FastAPI 템플릿과 같은 공통 계층 |
 | `scripts/` | bootstrap, Tailwind 빌드, 버전 기록(`versions.env`) |
 | `tests/` | pytest — Flask `test_client` 로 화면·API, 서비스 단위 테스트 |
+| `.github/` | GitHub Actions CI(`workflows/ci.yml`), PowerShell 5.1 구문 검사 스크립트, PR 템플릿 |
 
 세부 디렉터리와 계층 규칙은 `ARCHITECTURE.md` §4·§8 을, 새 도메인 추가 절차는 [`add-domain` 스킬](.claude/skills/add-domain/SKILL.md)을 따른다.
 
@@ -238,6 +239,18 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 ```
 
 테스트는 임시 SQLite 파일 DB 와 임시 업로드 폴더를 쓰므로 PostgreSQL 없이 돈다. 마이그레이션 검증만은 실제 PostgreSQL 에서 한다([`db-migration` 스킬](.claude/skills/db-migration/SKILL.md)).
+
+### CI (GitHub Actions)
+
+`main` 에 push 하거나 PR 을 열면 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 이 돈다. push 이후에 도는 사후 안전망이며, 게이트는 위의 로컬 검증이다.
+
+| 잡 | 내용 |
+|---|---|
+| `app` | Ubuntu·Windows 에서 `pip check`·`ruff check`·`pytest`(`DeprecationWarning` 은 실패) |
+| `css` | Ubuntu 는 `tailwind.sh`, Windows 는 PowerShell 5.1 로 `tailwind.ps1` — 내려받기·SHA-256 검증·빌드 |
+| `migrations` | `postgres:16` 서비스 컨테이너에 `alembic upgrade head` → `check` → `downgrade base` → `upgrade head` |
+| `powershell-syntax` | 모든 `.ps1` 을 Windows PowerShell 5.1 로 파싱하고 PS7 전용 문법을 찾는다 |
+| `audit` | `pip-audit -r requirements.txt` — 경고성(새 CVE 로 CI 가 실패하지 않게 `continue-on-error`). 로그를 주기적으로 확인한다 |
 
 ## 환경 설정
 

@@ -1,0 +1,145 @@
+name: CI
+
+# ARCHITECTURE.md §20: 이 CI 는 push 이후 도는 사후 안전망이다.
+# 게이트는 push 전 로컬 검증(ruff·pytest)이다. CI 가 실패하면 되돌리거나 즉시 고친다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 최소 권한 — 미선언이면 리포/조직 설정에 따라 GITHUB_TOKEN 이 read-write 로 발급된다.
+# 이 워크플로는 체크아웃과 검증만 하므로 읽기면 충분하다.
+permissions:
+  contents: read
+
+# 같은 PR 에 연속 push 하면 이전 실행을 취소해 러너 시간을 아낀다(main push 는 취소하지 않는다).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app:
+    # 이 프로젝트는 Windows 와 macOS/Linux 에서 함께 개발한다.
+    # Ubuntu 만 돌리면 OS 분기 버그(경로·인코딩·시각대·휠)를 잡지 못한다.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip check
+      - name: Ruff (lint)
+        run: ruff check .
+      - name: Pytest
+        # 테스트는 SQLite 를 쓴다 — 외부 DB 불필요 (§12). DeprecationWarning 은 실패로 본다.
+        run: pytest -q -W error::DeprecationWarning
+
+  css:
+    # Tailwind standalone CLI 내려받기 → SHA-256 검증 → 빌드 (§15).
+    # 두 OS 에서 각자의 스크립트(tailwind.sh · tailwind.ps1)를 실제로 돌린다.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build CSS (tailwind.sh)
+        if: runner.os != 'Windows'
+        run: bash scripts/tailwind.sh
+      - name: Build CSS (tailwind.ps1, Windows PowerShell 5.1)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\tailwind.ps1
+      - name: app.css 생성 확인
+        shell: bash
+        run: test -s app/static/css/app.css
+
+  migrations:
+    # ⚠️ 서비스 컨테이너(postgres:16)는 Linux 러너에서만 동작한다 — DB 검증은 별도 ubuntu 잡이다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Seoul
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_migration_check
+          TZ: Asia/Seoul
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Alembic (마이그레이션 왕복 검증)
+        # 실제 PostgreSQL 에 마이그레이션을 적용하고 모델과의 불일치를 검사한다 (§11).
+        # downgrade base → upgrade head 왕복으로 downgrade 경로도 검증한다 — 깨진 downgrade 는 운영 롤백 때 처음 드러난다.
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/ci_migration_check
+        run: |
+          alembic upgrade head
+          alembic check
+          alembic downgrade base
+          alembic upgrade head
+
+  # .ps1 은 Windows PowerShell 5.1 에서 파싱되어야 한다.
+  # PS7 전용 문법(??, ?:, &&/||)이 하나라도 섞이면 5.1 은 한 줄도 실행하지 못한다.
+  powershell-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check .ps1 syntax with Windows PowerShell 5.1
+        shell: powershell # pwsh 가 아니라 5.1 이어야 의미가 있다
+        # ⛔ 검사 로직을 여기 인라인으로 옮기지 않는다. Actions 는 이 스텝을 BOM 없는 UTF-8
+        #    임시 파일로 쓰는데 5.1 은 그것을 ANSI 로 읽어 한글이 깨지고 따옴표 짝이 무너진다
+        #    ("The string is missing the terminator"). 스크립트 파일은 BOM 을 달아 커밋한다.
+        run: .\.github\scripts\check-ps1-syntax.ps1
+
+  # ── 의존성 취약점 스캔 (경고성) ──────────────────────────────────────────
+  # ⚠️ 트레이드오프: 스캔 스텝은 continue-on-error 다. 새 CVE 는 코드 변경 없이도 공개되므로
+  #    실패로 두면 아무 커밋 없이 CI 가 빨간불이 된다 — 그래서 경고로만 남긴다.
+  #    대신 실제 취약점이 나와도 워크플로는 초록이므로, 이 잡의 로그(주황 ⚠ 표시)를 주기적으로
+  #    확인하고 패치한다. 강제 차단으로 바꾸려면 continue-on-error 를 제거한다.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: pip-audit (requirements.txt 취약점 스캔)
+        # -r 로 requirements.txt 에 선언된 의존성을 격리된 환경에서 해석해 검사한다.
+        continue-on-error: true
+        run: |
+          pip install pip-audit==2.10.1
+          pip-audit -r requirements.txt

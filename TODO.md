@@ -28,24 +28,25 @@
   - [x] skeleton 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`PLAN.md`·`docs/README.md`·`.claude/skills/`(5종)
   - [x] 루트 문서 — `README.md`·`AGENTS.md`·`CLAUDE.md`·`CHANGELOG.md`·`docs/README.md`·`.gitignore`
     - 문서의 `ARCHITECTURE.md §N` 참조는 6단계에서 파일이 생기면 링크·절 제목을 맞춘다
-    - CI 가 생기면(5단계) `pr-workflow` 스킬·README 검증 상태·AGENTS 「저장소 구조」에 CI 를 반영한다
+    - [x] CI 를 `pr-workflow` 스킬·README(루트·skeleton)·AGENTS 「저장소 구조」에 반영(5단계)
 - [x] 2. 공통 계층 복사 + 서비스 단위 테스트 통과 — 원본과 파일 단위 동일 확인(2026-11-23)
 - [x] 3. 웹 계층 — `app/main.py`(create_app)·`app/dependencies.py`·`app/web/`(auth·public·api·files·errors·htmx·admin)
 - [x] 4. 화면 — Jinja 템플릿, htmx 예제 3곳(공지 검색·사용자 행 저장·배너 순서), Tailwind standalone 빌드(`scripts/tailwind.*`)
-- [ ] 5. 검증 자동화
+- [x] 5. 검증 자동화
   - [x] 웹 테스트(Flask `test_client`) — 전체 163건 통과, ruff 통과
-  - [ ] `skeleton/.github/workflows/ci.yml`(생성 프로젝트 CI), 루트 `template-ci.yml`
-  - [ ] `tools/check_projects.py` 경로 대응 + 공통 계층 동일성 검사(원본 `fastapi-react-pg-starter`)
+  - [x] `skeleton/.github/workflows/ci.yml`(생성 프로젝트 CI), 루트 `template-ci.yml`, 두 `check-ps1-syntax.ps1`, PR 템플릿
+  - [x] `tools/check_projects.py` 평면 구조 대응 + `tools/check_common_layer.py`(원본이 비공개라 CI 대신 로컬 실행) — 단위 테스트 28건 통과
+  - [ ] 첫 push 후 GitHub Actions 결과 확인 — 특히 `migrations-postgres`(PostgreSQL 첫 검증)·`scaffold-posix` macOS·`scaffold-windows`
 - [ ] 6. `skeleton/ARCHITECTURE.md` — 형제 문서 기준으로 §4·§6·§9·§13~15 재작성(절 번호는 유지 — 공통 코드 주석이 § 번호를 참조한다)
 
 ## 미검증·확인 항목
 
-- [ ] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — Docker 미기동으로 미검증. SQLite 에서는 `upgrade head` 통과
+- [ ] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — 로컬은 Docker 미기동·PostgreSQL 18 접속 정보 없음으로 미검증. SQLite 에서는 `upgrade head` 통과. CI `migrations` 잡이 처음 확인한다
 - [ ] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 공통 마이그레이션(원본 저장소) 쪽 문제인지 PostgreSQL 에서 확인
 - [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증. HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)은 확인
 - [ ] 공지 본문 편집기 — 지금은 HTML textarea + 이미지 업로드 후 코드 붙여 넣기. 리치 텍스트 편집기 도입 여부 결정
 - [ ] scaffold DB 단계(psql 사전 검사·CREATE DATABASE·시각대·alembic)와 대화형 입력 — PostgreSQL 미기동으로 미검증
-- [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인. `bootstrap --with-postgres` 미검증
+- [ ] scaffold·bootstrap·`tailwind.sh` 를 macOS/Linux 에서 실행 — Windows(Git Bash·PowerShell 5.1)에서만 확인(CI `scaffold-posix` 가 scaffold·`tailwind.sh` 를 다룬다). `bootstrap --with-postgres` 미검증
 - [ ] `ruff format --check` 는 공통 파일 17개를 고치려 한다(원본 저장소 상태 그대로) — CI 는 형제와 같이 `ruff check` 만 돌린다
 - [ ] bcrypt 72-byte 가드 테스트 — 형제 `test_security.py` 의 `test_verify_password_over_72_bytes_returns_false` 는 FastAPI 에 묶여 있어 옮기지 않았다. 로그인 422·`verify_password` False 테스트를 웹 테스트로 추가한다
 - [ ] `requirements.txt` 핀 검토 — 직접 의존성만 고정(전이 의존성 jinja2·markupsafe·itsdangerous·click·blinker 는 미고정)

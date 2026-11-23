@@ -19,12 +19,16 @@
 | `skeleton/ARCHITECTURE.md` | 생성 프로젝트의 아키텍처 기준(SSOT) — 작성 예정(`TODO.md` 6단계). 공통 코드 주석이 형제 템플릿의 § 번호를 참조하므로 절 번호를 형제와 같게 둔다 |
 | `skeleton/app/` 의 공통 계층 | `config.py`·`cli.py`·`core/`·`db/`·`models/`·`schemas/`·`services/` 와 `skeleton/alembic/` — `fastapi-react-pg-starter` 의 `skeleton/backend/` 에서 **파일 그대로 복사**한 것(아래 「공통 계층」) |
 | `skeleton/.claude/skills/` | 생성 프로젝트용 작업 스킬 — 이 저장소에서도 `skeleton/` 을 고칠 때 참고한다(특히 `stack-versions`) |
+| `skeleton/.github/` | 생성 프로젝트 CI(`workflows/ci.yml`)·PS 5.1 구문 검사 스크립트·PR 템플릿 |
+| `.github/` | 이 템플릿 저장소의 CI(`workflows/template-ci.yml`)와 같은 PS 5.1 구문 검사 스크립트 |
+| `tools/` | 점검 도구(`check_projects.py` 생성 프로젝트 점검, `check_common_layer.py` 공통 계층 동일성)와 단위 테스트. 스캐폴드 시 복사되지 않는다 |
 | `docs/` | 템플릿 문서 — 검토 기록(`reviews/`)·보관 기록(`archive/`). 스캐폴드 시 복사되지 않는다. 작성 규칙은 [`docs/README.md`](docs/README.md) |
 | `TODO.md` | 재개발 작업 계획(작업 중에만 둔다 — 아래 「문서 갱신」) |
 | `CHANGELOG.md` | 템플릿 변경 이력 |
 | `README.md` | 템플릿 사용법·버전 고정 정책·검증 상태 |
 
-템플릿 CI·생성 프로젝트 CI·점검 도구는 아직 없다(`TODO.md` 5단계). 그때까지 아래 「검증 절차」가 유일한 게이트다.
+템플릿 CI(`template-ci.yml`)는 push 이후 도는 사후 안전망이다. 커밋 전 게이트는 아래 「검증 절차」다.
+공통 계층 동일성은 원본 저장소가 비공개라 CI 에서 검사하지 않는다 — 로컬에서 `tools/check_common_layer.py` 로 확인한다.
 
 ## 지침 적용 범위
 
@@ -50,14 +54,11 @@
 - `fastapi-react-pg-starter/skeleton/backend/` → 이 저장소 `skeleton/` 으로 **단방향 추적**한다. ⛔ 이 저장소에서 공통 파일을 고치지 않는다 — 버그를 찾으면 원본 저장소에서 고치도록 보고하고, 원본이 바뀌면 파일을 다시 복사한다.
 - 대상: `app/__init__.py`·`app/config.py`·`app/cli.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/`·`alembic.ini`, 테스트 `media_factory.py`·`test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`. 프레임워크(FastAPI·Flask)에 묶인 코드는 공통 계층에 없다.
 - 원본에서 다시 복사하면 이 저장소 웹 계층(`app/web/`·`app/dependencies.py`·`app/main.py`)과 테스트가 새 서비스 시그니처에 맞는지 확인한다. 설정 키가 바뀌었으면 `.env.example` 과 두 스캐폴드의 `.env` 생성 블록도 고친다.
-- 동일성 확인(저장소 루트, Git Bash):
+- 동일성 확인(저장소 루트) — 원본 기본 위치는 이 저장소 옆 `../fastapi-react-pg-starter` 다. 종료 코드 0 같음, 1 차이, 2 원본 없음.
+  대상 목록은 `tools/check_common_layer.py` 의 `COMMON_PATHS` 에 있으며, 위 「대상」을 바꾸면 함께 고친다.
 
-```bash
-S=../fastapi-react-pg-starter/skeleton/backend
-for p in app/__init__.py app/config.py app/cli.py app/core app/db app/models app/schemas app/services alembic alembic.ini \
-         tests/media_factory.py tests/test_cli.py tests/test_config.py tests/test_sanitize.py tests/test_storage.py; do
-  diff -rq -x __pycache__ "skeleton/$p" "$S/$p"
-done   # 출력이 없어야 한다
+```powershell
+python -B tools\check_common_layer.py                 # 다른 위치면 --source <원본 저장소 루트>
 ```
 
 ## 검증 절차
@@ -87,7 +88,8 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 - 검증을 마치면 `git status --short --ignored` 로 저장소 안에 새 산출물이 없는지 확인한다(작업 전부터 있던 무시 파일은 제외).
 - DB 가 바뀌면 PostgreSQL 상대로 `alembic upgrade head` → `alembic check` → `alembic downgrade base` → `alembic upgrade head` 를 실행한다
   (Docker 예: `docker run --rm -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:16` + 임시 프로젝트 `.env` 의 `DATABASE_URL` 수정).
-- `.ps1` 을 고치면 Windows PowerShell 5.1 의 `[System.Management.Automation.Language.Parser]::ParseFile` 로 파싱 오류와 PS7 전용 토큰이 없는지 확인하고, `.sh` 를 고치면 `bash -n` 과 ShellCheck(`shellcheck -S warning -e SC2088`)를 실행한다. 스캐폴드는 두 판 모두 실제로 실행해 결과물이 같은지(비밀값 제외) 비교한다.
+- `.ps1` 을 고치면 `powershell -NoProfile -ExecutionPolicy Bypass -File .\.github\scripts\check-ps1-syntax.ps1`(Windows PowerShell 5.1 파싱 + PS7 전용 토큰 검사)을, `.sh` 를 고치면 `bash -n` 과 ShellCheck(`shellcheck -S warning -e SC2088 scaffold.sh skeleton/scripts/bootstrap.sh skeleton/scripts/tailwind.sh`)를 실행한다. ShellCheck 가 없으면 스크래치 venv 에 `pip install shellcheck-py` 로 받는다. 스캐폴드는 두 판 모두 실제로 실행해 결과물이 같은지(비밀값 제외) 비교한다.
+- `tools/` 를 고치면 `python -B -m unittest discover -s tools` 를 실행한다(표준 라이브러리만 쓴다).
 - 실행하지 못한 검증은 생략하지 않고 **미검증**으로 명시한다(사유 포함 — README 검증 상태·CHANGELOG·보고). 통과한 것처럼 서술하지 않는다.
 
 ### 버전 상향
@@ -102,7 +104,7 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 
 - `.ps1` 은 **Windows PowerShell 5.1 에서 파싱되어야 한다** — ⛔ PS7 전용 문법(`??`, `?:`, `&&`/`||`, `?.`).
 - `.ps1` 은 **UTF-8 BOM** 으로 저장한다. BOM 이 없으면 5.1 이 ANSI(한국어 Windows 는 CP949)로 읽어 한글이 깨진다.
-  대상은 `scaffold.ps1`·`skeleton/scripts/bootstrap.ps1`·`skeleton/scripts/tailwind.ps1` 이며, 편집 도구가 BOM 을 지우지 않았는지 커밋 전에 확인한다.
+  대상은 `scaffold.ps1`·`skeleton/scripts/bootstrap.ps1`·`skeleton/scripts/tailwind.ps1` 과 두 `check-ps1-syntax.ps1`(`.github/scripts/`·`skeleton/.github/scripts/`, 같은 내용으로 유지)이며, 편집 도구가 BOM 을 지우지 않았는지 커밋 전에 확인한다.
 - 줄바꿈은 `.gitattributes` 가 강제한다 — `.sh` 는 LF(CRLF 면 셰뱅이 깨진다), `.ps1` 은 CRLF. 루트와 `skeleton/` 의 `.gitattributes` 를 함께 유지한다.
 - `scaffold.ps1` ↔ `scaffold.sh`, `bootstrap.ps1` ↔ `bootstrap.sh`, `tailwind.ps1` ↔ `tailwind.sh` 는 한쪽을 고치면 다른 쪽도 같은 변경에서 고친다. 옵션 이름은 각 셸 관례를 따른다(`-SkipDb` ↔ `--skip-db`).
 - 생성되는 `.env` 의 키 집합은 `skeleton/.env.example` 과 같아야 한다. 키를 추가·삭제하면 두 스캐폴드 스크립트의 `.env` 생성 블록을 같은 변경에서 고친다.
