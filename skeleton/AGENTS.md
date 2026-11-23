@@ -16,7 +16,7 @@
 
 ## 반드시 지킨다 (시작 전 확인 — 상세는 ARCHITECTURE.md ★MUST 요약)
 
-- **스택 고정**: Flask 3 + Jinja 서버 렌더링 + SQLAlchemy 2 + Alembic / **PostgreSQL**. 화면 보강은 htmx(선택), 스타일은 Tailwind CSS v4 standalone CLI 다. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js 를 들이지 않는다. 정확한 버전은 `scripts/versions.env`·`requirements.txt` 와 `stack-versions` 스킬을 확인한다.
+- **스택 고정**: Flask 3 + Jinja 서버 렌더링 + SQLAlchemy 2 + Alembic / **PostgreSQL**. 화면 보강은 htmx(선택), 스타일은 Tailwind CSS v4 standalone CLI 다. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js, jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다(DOM 조작은 브라우저 표준 API 로 한다). 정확한 버전은 `scripts/versions.env`·`requirements.txt` 와 `stack-versions` 스킬을 확인한다.
 - **DB는 항상 Alembic으로만 관리**: 런타임 `create_all`, 자동 DDL, 수동 `ALTER` 는 금지한다. 테스트의 임시 SQLite DB 만 예외다.
 - **환경 파일**: 프로젝트 루트의 `.env` 하나를 쓴다. `.env.example` 을 복사하고 실제 `.env` 는 커밋하지 않는다. 셸 환경변수(`$env:`·`export`)에 기대는 설정을 만들지 않는다.
 - **시각은 KST 단일 기준(OS 무관)**: 현재 시각은 `app.core.security.now()`(고정 오프셋 UTC+9 로 계산한 KST naive)로만 얻는다. ⛔ naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()` 처럼 OS 시각대를 따르는 호출을 쓰지 않는다. PostgreSQL `timezone=Asia/Seoul` 정책을 유지한다. OS 시각대를 서울로 바꿀 필요는 없다(Unix 는 `.env` 의 `TZ` 를 외부 라이브러리용으로 적용하고, Windows 는 적용하지 않는다).

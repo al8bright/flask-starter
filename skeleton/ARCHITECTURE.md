@@ -15,7 +15,7 @@
 
 | # | 고정 규칙 (MUST) | § |
 |---|------------------|---|
-| 1 | **표준 스택 고정**: Flask 3 + Jinja + SQLAlchemy 2 + Alembic, DB 는 **PostgreSQL**. 화면 보강은 htmx(벤더링), 스타일은 Tailwind CSS standalone CLI. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js 금지 — 정확한 버전은 `requirements.txt`·`scripts/versions.env` | §2 |
+| 1 | **표준 스택 고정**: Flask 3 + Jinja + SQLAlchemy 2 + Alembic, DB 는 **PostgreSQL**. 화면 보강은 htmx(벤더링), 스타일은 Tailwind CSS standalone CLI. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js, jQuery 등 DOM 유틸리티 라이브러리 금지 — 정확한 버전은 `requirements.txt`·`scripts/versions.env` | §2 |
 | 2 | **DB는 항상 Alembic으로만 관리** — 모든 스키마 생성·변경은 마이그레이션. ⛔ dev/운영 런타임 `create_all`·자동 DDL·수동 `ALTER` 금지(테스트 임시 DB만 예외) | §11 |
 | 3 | **설정은 OS 무관한 프로젝트 루트 `.env` 하나로 주입**. ⛔ 개발 중 `$env:`/`export`/`set` 셸 환경변수 의존 금지. ⛔ 실제 `.env` 커밋 금지(`.env.example`만) | §5, §17 |
 | 4 | **시각은 KST 단일 기준 — OS·프로세스 시각대와 무관** — 저장·비교 기준은 KST naive(`now()` = 고정 오프셋 UTC+9 로 계산한 naive 값), PostgreSQL `connect_args`에 `timezone=Asia/Seoul`. ⛔ OS 시각대를 따르는 호출(naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()`) 금지 — `now()`·`KST` 를 쓴다. ⛔ UTC 저장·aware 시각 비교 금지(외부 연동 값의 경계 변환과 표시용 `ZoneInfo` 변환은 허용) | §10, §7 |
@@ -532,6 +532,7 @@ def _clear_settings_cache():
 
 - 스크립트는 `app/static/js/` 의 파일만 쓰고 `base.html` 에서 `defer` 로 불러온다. 현재 `htmx.min.js`(벤더링)와 `app.js`(`data-confirm="<문구>"` 폼의 제출 전 확인) 뿐이다.
 - ⛔ 인라인 `<script>`·`on*=` 속성·`javascript:` URL·외부 CDN 스크립트(CSP §9). 외부 라이브러리가 필요하면 벤더링하고 버전·무결성을 `scripts/versions.env` 에 기록한다([`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)).
+- DOM 조작은 브라우저 표준 API(`querySelector`·`closest`·`classList`·`addEventListener` 위임·`fetch`)로 한다. ⛔ jQuery 등 DOM 유틸리티 라이브러리를 들이지 않는다 — 화면 갱신은 htmx 가, 나머지는 표준 API 가 맡는다. HTML 문자열을 `innerHTML` 로 넣을 때 `style=`·`<script>` 가 들어가지 않게 한다(CSP 위반).
 - 되돌릴 수 없는 폼(삭제·강제 종료·비활성화)에는 `data-confirm` 을 붙인다.
 
 ---

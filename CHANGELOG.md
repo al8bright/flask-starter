@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-11-23 — jQuery 4.1.0 도입 검토
+
+### Added (추가)
+
+- 검토 기록 [`docs/reviews/2026-11-23-jquery-adoption.md`](docs/reviews/2026-11-23-jquery-adoption.md): jQuery 4.1.0(2026-11-17 배포)과 바닐라 JS 를 비교하였다. 편집기 핵심 API(Selection·Range·contentEditable)는 jQuery 에 없고, Ajax 는 htmx·`fetch` 가 맡으며, 모든 화면에 27 KB(gzip)와 벤더링 관리가 추가된다. 문자열 HTML 삽입 시 인라인 스크립트 재실행이 CSP 위반을 유발할 수 있다(정적 분석). 바닐라 JS 유지로 결정하였다.
+
+### Changed (변경)
+
+- `skeleton/ARCHITECTURE.md` ★MUST #1·§13, `skeleton/AGENTS.md`: jQuery 등 DOM 유틸리티 라이브러리 금지와 표준 DOM API 사용을 명시하였다.
+
 ## 2026-11-23 — 공지 본문 위지웍 편집기 검토
 
 ### Added (추가)
