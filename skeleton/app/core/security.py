@@ -2,23 +2,26 @@
 
 날짜·시간 규칙(§10):
 - 업무 시각은 KST 기준이며, UTC<->KST 변환 레이어를 두지 않는다.
-- 애플리케이션에서는 naive datetime.now() 만 사용한다.
-- 실행 환경에 TZ=Asia/Seoul 을 설정한다.
+- 현재 시각은 now() 로만 얻는다. OS·프로세스 시각대(TZ)와 무관하게 고정 오프셋 UTC+9(KST)로 계산한
+  naive 값이다 — 한국은 일광절약시간이 없으므로 tzdata 없이 고정 오프셋으로 충분하다.
+- 시각대가 붙은 값을 KST naive 로 바꿀 때는 KST 를 쓴다(인자 없는 astimezone() 은 OS 시각대를 따른다).
 """
 import base64
 import hashlib
 import hmac
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
 
+KST = timezone(timedelta(hours=9), "KST")
+
 
 def now() -> datetime:
-    """KST 기준 naive 현재 시각."""
-    return datetime.now()
+    """KST 기준 naive 현재 시각 — OS·프로세스 시각대와 무관하다 (§10)."""
+    return datetime.now(KST).replace(tzinfo=None)
 
 
 # bcrypt 는 72 bytes 초과분을 예외 없이 조용히 절단한다(UTF-8 한글은 글자당 3 bytes → 24자 초과 시 절단).

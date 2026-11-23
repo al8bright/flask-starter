@@ -18,7 +18,7 @@
 | 1 | **표준 스택 고정**: Flask 3 + Jinja + SQLAlchemy 2 + Alembic, DB 는 **PostgreSQL**. 화면 보강은 htmx(벤더링), 스타일은 Tailwind CSS standalone CLI. ⛔ Node·npm 빌드 단계, SPA 프레임워크, Alpine.js 금지 — 정확한 버전은 `requirements.txt`·`scripts/versions.env` | §2 |
 | 2 | **DB는 항상 Alembic으로만 관리** — 모든 스키마 생성·변경은 마이그레이션. ⛔ dev/운영 런타임 `create_all`·자동 DDL·수동 `ALTER` 금지(테스트 임시 DB만 예외) | §11 |
 | 3 | **설정은 OS 무관한 프로젝트 루트 `.env` 하나로 주입**. ⛔ 개발 중 `$env:`/`export`/`set` 셸 환경변수 의존 금지. ⛔ 실제 `.env` 커밋 금지(`.env.example`만) | §5, §17 |
-| 4 | **시각은 KST 단일 기준** — 저장·비교 기준은 KST naive(`now()` = naive `datetime.now()`), PostgreSQL `connect_args`에 `timezone=Asia/Seoul`. Unix는 `TZ=Asia/Seoul`, Windows는 OS 시각대를 서울(UTC+9)로 설정. ⛔ UTC 저장·aware 시각 비교 금지(외부 연동 값의 경계 변환과 표시용 `ZoneInfo` 변환은 허용) | §10, §7 |
+| 4 | **시각은 KST 단일 기준 — OS·프로세스 시각대와 무관** — 저장·비교 기준은 KST naive(`now()` = 고정 오프셋 UTC+9 로 계산한 naive 값), PostgreSQL `connect_args`에 `timezone=Asia/Seoul`. ⛔ OS 시각대를 따르는 호출(naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()`) 금지 — `now()`·`KST` 를 쓴다. ⛔ UTC 저장·aware 시각 비교 금지(외부 연동 값의 경계 변환과 표시용 `ZoneInfo` 변환은 허용) | §10, §7 |
 | 5 | **화면은 블루프린트, JSON 은 `/api/v1`** — 화면(`/`·`/login`·`/admin`)은 HTML 을 렌더링하고, `/api/v1` 아래에는 헬스 체크·첨부 다운로드만 둔다. 블루프린트 등록은 `app/web/__init__.py` 한 곳 | §4 |
 | 6 | **설정 접근은 `get_settings()` + `@lru_cache`** — ⛔ 모듈 전역 `settings` 싱글톤 금지 | §5 |
 | 7 | **공통 의존성은 `app/dependencies.py` 단일 파일** (`get_db`, `current_user`, `login_required`, `admin_required`, 인증 쿠키) | §6 |
@@ -436,11 +436,11 @@ class Order(Base):
 
 - **기준**: 저장·비교·업무 일자는 **KST naive** 로 통일한다. 애플리케이션 안에 UTC↔KST 변환 레이어를 두지 않는다.
 - **PostgreSQL**: 엔진 `connect_args`에 `options="-c timezone=Asia/Seoul"`.
-- **앱 코드**: `app.core.security.now()`는 **naive `datetime.now()`만** 사용.
-- **Unix 실행 환경**: 프로세스에 **`TZ=Asia/Seoul`**을 설정하고 애플리케이션이 `tzset()`으로 적용한다(`.env` 의 `TZ` 가 셸 값보다 우선).
-- **Windows 실행 환경**: Windows CRT는 IANA `TZ=Asia/Seoul`을 프로세스 시각대에 적용하지 못하므로 **OS 시각대를 `서울`(UTC+9)로 설정**해야 한다. OS 오프셋이 KST와 다르면 애플리케이션이 경고한다.
+- **앱 코드**: 현재 시각은 `app.core.security.now()` 로만 얻는다 — `datetime.now(KST).replace(tzinfo=None)`, `KST` 는 고정 오프셋 UTC+9(한국은 일광절약시간이 없다)라 OS 시각대·`TZ`·tzdata 와 무관하다. ⛔ naive `datetime.now()`·`date.today()`·`datetime.fromtimestamp(ts)`(시각대 인자 없이)·인자 없는 `astimezone()` 은 OS 시각대를 따르므로 쓰지 않는다.
+- **로그**: `app/core/logging.py` 의 포매터가 로그 시각을 KST 로 찍는다(OS 시각대와 무관).
+- **실행 환경 `TZ`**: Unix 에서는 `.env` 의 `TZ`(기본 `Asia/Seoul`)를 프로세스에 적용(`tzset()`)해 외부 라이브러리·하위 프로세스의 로컬 시각도 KST 로 맞춘다. Windows 는 C 런타임이 IANA 이름을 해석하지 못해 UTC 로 보므로 프로세스 환경에 넣지 않는다. **OS 시각대를 서울로 바꿀 필요는 없다** — 앱 시각·로그는 어느 OS 에서든 KST 다.
 - **금지(신규 코드)**: `datetime.now(timezone.utc)` 같은 aware 시각을 저장·비교에 쓰는 것, DB 에 UTC 로 저장하는 것.
-- **허용**: 외부 연동 값(UTC 를 주는 외부 API, OIDC `exp` 등)을 경계에서 KST naive 로 바꿔 받아들이거나, 사용자에게 다른 시각대로 **표시**하기 위해 `zoneinfo.ZoneInfo` 로 변환하는 것. 시각대가 붙은 입력은 경계에서 KST naive 로 바꾼다(예: `schemas/banner.py` 의 `astimezone().replace(tzinfo=None)`).
+- **허용**: 외부 연동 값(UTC 를 주는 외부 API, OIDC `exp` 등)을 경계에서 KST naive 로 바꿔 받아들이거나, 사용자에게 다른 시각대로 **표시**하기 위해 `zoneinfo.ZoneInfo` 로 변환하는 것. 시각대가 붙은 입력은 경계에서 KST naive 로 바꾼다(예: `schemas/banner.py` 의 `astimezone(KST).replace(tzinfo=None)`).
 - **화면**: 서버 값은 KST naive 다. 템플릿에서는 `strftime` 으로 그대로 표시하고, `<input type="datetime-local">` 값(`YYYY-MM-DDTHH:MM`)은 `forms.optional_datetime` 으로 KST naive 로 받는다.
 
 ---
@@ -600,7 +600,7 @@ def _clear_settings_cache():
 | `UPLOAD_DIR` | 업로드 저장 위치(기본 `uploads`, 상대 경로는 프로젝트 루트 기준). `public/` 만 `/uploads/public` 으로 서빙 (§8) |
 | `PUBLIC_FILES_BASE_URL` | 공개 파일·첨부 다운로드 URL 접두사. 같은 오리진이면 비운다 |
 | `MAX_IMAGE_UPLOAD_MB`, `MAX_ATTACHMENT_UPLOAD_MB` | 업로드 크기 상한(MB, 기본 5 / 20) — 초과 시 413. 요청 본문 상한(`MAX_CONTENT_LENGTH`)도 이 값에서 정해진다 |
-| `TZ` | Unix 실행 환경 `Asia/Seoul`; Windows에서는 OS 시각대를 서울(UTC+9)로 설정 |
+| `TZ` | Unix 프로세스 시각대(기본 `Asia/Seoul`, 외부 라이브러리용). 앱 시각(`now()`)·로그는 이 값·OS 와 무관하게 KST 다. Windows 에서는 프로세스에 적용하지 않는다 (§10) |
 | `SEED_DEFAULT_ADMIN`, `DEFAULT_ADMIN_PASSWORD` | 기동 시 기본 관리자(admin) 시드 여부·초기 비밀번호. **코드 기본값은 꺼짐** — 스캐폴드가 개발용 `.env` 에서만 무작위 비밀번호로 켠다(§9, §21) |
 | `OAUTH_*` | SSO 도입 시 추가(authorize/token/userinfo URL, client id/secret, redirect uri) |
 
@@ -666,7 +666,7 @@ skeleton 은 개발 편의를 위해 기본 관리자 계정(`admin`)을 자동 
 - [ ] 앞단 프록시(또는 WAF)에 로그인 경로의 IP 단위 요청 제한과 업로드 본문 상한을 둔다 — 앱의 로그인 잠금은 계정 단위다 (§8, §9)
 - [ ] CSS 를 빌드한 `app.css` 를 배포 산출물에 포함한다 (§15)
 - [ ] 로그 수집 대상에 `app.audit` 를 포함한다 (`LOG_LEVEL=INFO` 이상, §9)
-- [ ] 배포 대상의 KST 설정 확인 — Unix는 `TZ=Asia/Seoul`과 `tzset()` 적용, Windows는 OS 시각대 `서울`(UTC+9) 설정 및 애플리케이션 경고 부재 확인 (§10, §17)
+- [ ] 운영 DB 의 KST 확인 — 연결 시각대(`SHOW timezone` = `Asia/Seoul`)와 DB 기본값(`func.now()`)이 KST 인지 본다. 앱 시각·로그는 OS 시각대와 무관하게 KST 이므로 서버 OS 시각대는 바꾸지 않아도 된다 (§7, §10)
 - [ ] 운영 DB 에 `alembic upgrade head` 를 적용하는 시점과 롤백 계획을 정한다 (§11)
 - [ ] `UPLOAD_DIR` 을 영속 저장소에 둔다 (§8)
 

@@ -2,7 +2,6 @@
 
 설정은 OS 무관하게 .env 로 주입한다. 접근은 항상 get_settings() 로 한다.
 """
-import logging
 import os
 import time
 from functools import lru_cache
@@ -12,8 +11,6 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-logger = logging.getLogger(__name__)
-
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = BACKEND_ROOT / ".env"
 
@@ -22,9 +19,6 @@ ENV_FILE = BACKEND_ROOT / ".env"
 DEFAULT_SECRET_KEY = "change-me-in-production-use-32-bytes"
 MIN_PRODUCTION_SECRET_BYTES = 32
 MIN_PRODUCTION_BCRYPT_ROUNDS = 12
-
-# §10 KST 단일 기준 — 런타임이 이 오프셋이 아니면 created_at·업무 일자가 비-KST 로 저장된다.
-KST_UTC_OFFSET_HOURS = 9
 
 
 class Settings(BaseSettings):
@@ -104,32 +98,18 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
-def local_utc_offset_hours() -> int:
-    """OS 로컬 시각대의 UTC 오프셋(시간 단위). DST 를 쓰는 시각대면 altzone 을 본다."""
-    offset_seconds = -time.altzone if time.daylight else -time.timezone
-    return offset_seconds // 3600
-
-
 def _apply_timezone(tz: str) -> None:
-    """프로세스 시각대를 실제로 반영한다 (§10 런타임 TZ=Asia/Seoul).
+    """프로세스 시각대를 맞춘다 (§10). 앱 시각(core.security.now)과 로그 시각은 이 함수와 무관하게 KST 다.
 
-    .env 의 TZ 가 셸 환경변수보다 우선한다(§5 셸 환경변수 의존 금지) — setdefault 가 아니라 대입이다.
-    time.tzset() 은 Unix 전용이고, Windows 는 TZ 환경변수로 프로세스 시각대를 바꿀 수 없다
-    (MSVC CRT 는 IANA 이름을 해석하지 못한다). 강제할 수 없으므로 조용히 넘어가는 대신
-    실제 OS 오프셋이 KST 인지 검증해 경고를 남긴다.
+    - Unix: .env 의 TZ 를 프로세스에 적용한다(tzset) — 외부 라이브러리·하위 프로세스의 로컬 시각도 맞춘다.
+      .env 의 TZ 가 셸 환경변수보다 우선한다(§5 셸 환경변수 의존 금지) — setdefault 가 아니라 대입이다.
+    - Windows(tzset 없음): C 런타임(MSVC CRT)이 IANA 이름(Asia/Seoul)을 해석하지 못해 UTC 로 보므로
+      프로세스 환경에 넣지 않는다. 넣으면 OS 시각대가 서울이어도 로컬 시각이 UTC 로 바뀐다.
     """
-    os.environ["TZ"] = tz
-    if hasattr(time, "tzset"):
-        time.tzset()
+    if not hasattr(time, "tzset"):
         return
-    offset = local_utc_offset_hours()
-    if offset != KST_UTC_OFFSET_HOURS:
-        logger.warning(
-            "OS 시각대 오프셋이 UTC%+d 입니다 (KST=UTC+%d). ARCHITECTURE.md §10 위반 — "
-            "Windows 는 TZ 환경변수로 변경되지 않으므로 OS 시각대를 '서울'로 설정하세요.",
-            offset,
-            KST_UTC_OFFSET_HOURS,
-        )
+    os.environ["TZ"] = tz
+    time.tzset()
 
 
 @lru_cache

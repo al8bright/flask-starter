@@ -34,7 +34,7 @@ description: __PROJECT_NAME__ 에 새 도메인/리소스(예: orders, events)�
    ```
    - `app/models/__init__.py` 에서 **반드시 re-export**(메타데이터/Alembic 등록).
    - **기본값이 있는 NOT NULL 컬럼은 `default`(ORM)와 `server_default`(DB)를 함께 둔다** — ORM 을 거치지 않는 INSERT 에서도 NOT NULL 위반이 나지 않게 한다. 불리언은 `server_default=true()`/`false()`, 숫자는 `"0"`, 시각은 `func.now()`. 기준 예시는 `models/user.py`·`models/notice.py`(§8).
-   - 시각 컬럼은 `default=now`(KST naive). ⛔ aware 시각(`datetime.now(timezone.utc)` 등)을 저장하거나 naive 값과 비교하지 않는다(§10).
+   - 시각 컬럼은 `default=now`(KST naive). 현재 시각은 `app.core.security.now()` 로만 얻는다 — ⛔ naive `datetime.now()`·`date.today()` 는 OS 시각대를 따른다. ⛔ aware 시각(`datetime.now(timezone.utc)` 등)을 저장하거나 naive 값과 비교하지 않는다(§10).
 
 2. **마이그레이션** — 모델을 추가/변경했으면 Alembic 으로만 반영. → [db-migration] 스킬.
    ⛔ 런타임 `create_all`·수동 `ALTER` 금지(§11).

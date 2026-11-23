@@ -5,6 +5,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.core.security import KST
+
 LINK_URL_MAX_LENGTH = 500
 
 
@@ -30,11 +32,11 @@ def validate_link_url(value: str | None) -> str | None:
     return value
 
 
-def _to_local_naive(value: datetime | None) -> datetime | None:
-    """오프셋이 붙은 시각은 프로세스 로컬 시각(KST 정책, §10)의 naive 로 바꾼다. naive 는 그대로."""
+def _to_kst_naive(value: datetime | None) -> datetime | None:
+    """오프셋이 붙은 시각은 KST naive 로 바꾼다(OS 시각대와 무관, §10). naive 는 KST 로 보고 그대로 둔다."""
     if value is None or value.tzinfo is None:
         return value
-    return value.astimezone().replace(tzinfo=None)
+    return value.astimezone(KST).replace(tzinfo=None)
 
 
 class BannerPublic(BaseModel):
@@ -97,7 +99,7 @@ class BannerWrite(BaseModel):
     @field_validator("starts_at", "ends_at")
     @classmethod
     def _naive(cls, v: datetime | None) -> datetime | None:
-        return _to_local_naive(v)
+        return _to_kst_naive(v)
 
     @model_validator(mode="after")
     def _check_window(self) -> "BannerWrite":

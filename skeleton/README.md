@@ -256,7 +256,7 @@ DB 스키마는 Alembic 으로만 변경한다. 자동 생성 결과를 검토�
 
 - 설정은 프로젝트 루트의 `.env` 하나다(스캐폴드가 생성, 키 목록과 설명은 `.env.example`). `DATABASE_URL`, `SECRET_KEY`, `APP_ENV`, 로그인 세션 수명(`REFRESH_TOKEN_EXPIRE_DAYS`), 로그인 시도 제한(`LOGIN_MAX_FAILURES`·`LOGIN_LOCKOUT_MINUTES`), 쿠키 `Secure`(`COOKIE_SECURE`), 업로드(`UPLOAD_DIR`·`MAX_*_UPLOAD_MB`), 기본 관리자 시드(`SEED_DEFAULT_ADMIN`·`DEFAULT_ADMIN_PASSWORD`)를 여기서 설정한다.
 - 실제 `.env` 파일은 커밋하지 않는다. 배포 전에는 위 기본 계정 경고와 `ARCHITECTURE.md` §21 을 다시 확인한다.
-- Unix 계열은 `TZ=Asia/Seoul` 을 프로세스 시각대에 적용한다. Windows 는 OS 시각대를 서울(UTC+9)로 설정해야 하며, 불일치하면 애플리케이션이 경고한다.
+- 시각은 OS 시각대와 무관하게 KST 다(`app.core.security.now()`·로그). 서버·개발 PC 의 OS 시각대를 바꿀 필요는 없다. Unix 에서는 `.env` 의 `TZ=Asia/Seoul` 을 외부 라이브러리용으로 프로세스에 적용한다.
 
 ## 기술 스택과 버전
 

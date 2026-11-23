@@ -43,7 +43,7 @@
 
 ## 미검증·확인 항목
 
-- [ ] ⚠️ **공통 계층 Windows 시각대 버그**(원본 저장소 `app/config.py` 의 `_apply_timezone`) — Windows 에서도 `os.environ["TZ"] = "Asia/Seoul"` 을 대입하는데, MSVC CRT 가 IANA 이름을 해석하지 못해 UTC 로 보고 이후 `datetime.now()`(= `core.security.now()`)가 **UTC naive** 를 낸다. 경고 검사는 Python 시작 시점의 `time.timezone`(KST)을 읽어 통과하므로 경고도 없다. OS 시각대가 서울인 Windows 에서 `published_at`·세션 만료 등이 9시간 이르게 저장되고, DB 기본값(`func.now()`, KST)과 기준이 섞인다. 재현: `os.environ['TZ']='Asia/Seoul'` 뒤 첫 `datetime.now()` 가 UTC. 형제 저장소에서 고친 뒤 다시 복사한다(이 저장소에서 고치지 않는다)
+- [x] 공통 계층 Windows 시각대 버그 — 정책을 「OS 와 무관하게 KST」로 바꾸고 원본(`fastapi-react-pg-starter` `d93f04c`)에서 고친 뒤 다시 복사하였다(`now()` 를 고정 오프셋 UTC+9 로 계산, Windows 에서 `TZ` 미주입, 로그 시각 KST). `fastapi-nextjs-pg-starter`(`a94a56e`)에도 반영. nuxt·svelte 형제는 작업 환경에 없어 미반영
 - [x] PostgreSQL 마이그레이션(`upgrade → check → downgrade base → upgrade`) — Docker `postgres:16`(16.15)에서 통과, `alembic check` 차이 없음. 앱 연결의 세션 시각대 `Asia/Seoul`, 헬스 체크·로그인·관리자 화면·공지 작성(본문 정화)·htmx 검색 partial 확인(2026-11-23)
 - [x] SQLite `alembic check` 가 `banners.alt_text` 기본값 차이를 보고한다 — 원인 확인: 생성된 DDL 은 `DEFAULT ''` 로 정상이고, Alembic 1.20.1 `SQLiteImpl.compare_server_default` 의 따옴표 제거 정규식(`'(.+)'`)이 빈 문자열 `''` 을 벗기지 못해 DB 에서 읽은 값 `''` 과 모델의 빈 문자열이 다르다고 판정한다. 마이그레이션·모델 문제가 아니므로 고치지 않는다. PostgreSQL 에서는 `alembic check` 가 차이 없음으로 통과하였다
 - [ ] 브라우저 실동작(htmx 검색·행 저장·배너 이동이 CSP 아래에서 동작하는지, 콘솔 CSP 위반 없음) — Chrome 확장 미연결로 미검증(2026-11-23 재시도도 미연결). HTTP 수준(waitress 실행, 로그인, 관리자 화면 200)과 템플릿 정적 검사(`style=` 속성·인라인 `<script>`·`on*=` 속성·`hx-on`·`js:`·`<style>` 없음)는 확인

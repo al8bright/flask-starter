@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-11-23 — 시각 계산의 OS 시각대 독립(KST 고정)
+
+정책을 「OS 와 무관하게 KST」로 바꾸었다. 공통 계층 원본(`fastapi-react-pg-starter` `d93f04c`)에서 고친 파일을 다시 복사하였다.
+
+### Fixed (수정)
+
+- Windows 에서 `now()` 가 UTC 를 내던 공통 계층 버그(이전 항목 「알려진 문제」): `config._apply_timezone()` 이 Windows 에서 `TZ=Asia/Seoul` 을 프로세스 환경에 넣지 않고, `core.security.now()` 는 고정 오프셋 UTC+9(`KST`)로 계산한다. 로그 시각도 KST 로 찍고(`core/logging.py`), 배너 시각의 시각대 변환도 OS 시각대가 아닌 `KST` 를 쓴다(`schemas/banner.py`).
+
+### Changed (변경)
+
+- 문서: `skeleton/ARCHITECTURE.md` ★MUST #4·§10·§17·§21, `skeleton/AGENTS.md`·`README.md`·`.env.example` 의 `TZ` 설명, `add-domain` 스킬 — Windows OS 시각대 설정 요구를 없애고 naive `datetime.now()`·`date.today()`·인자 없는 `astimezone()` 금지를 명시하였다.
+
+### 검증
+
+- `check_common_layer.py` 동일. 임시 스캐폴드(Python 3.13.14): `pip check` 통과, `ruff check` 경고 0, `pytest -W error::DeprecationWarning` 171건 통과(시각대 테스트가 6건에서 5건으로 바뀌었다).
+- Docker `postgres:16` + waitress: 로그인·공지 작성 후 `notices.published_at`·`created_at`·`auth_sessions.created_at` 이 KST(UTC 09:55 에 18:55), 로그 시각도 KST. 수정 전 같은 시나리오에서는 UTC(09:37)가 저장되었다.
+- 미검증: Unix 에서 프로세스를 UTC 로 돌린 실제 실행(push 후 CI Ubuntu·macOS 가 확인한다).
+
 ## 2026-11-23 — PostgreSQL·스캐폴드 DB 단계 검증
 
 ### Fixed (수정)

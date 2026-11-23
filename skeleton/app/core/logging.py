@@ -7,10 +7,25 @@ uvicorn 은 자기 로거(uvicorn.*)만 설정하므로, 별도 설정이 없으
 """
 import logging
 import sys
+import time
+from datetime import datetime
+
+from app.core.security import KST
 
 APP_LOGGER = "app"
 _HANDLER_NAME = "app-stdout"
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+
+
+def _kst_time_tuple(seconds: float | None) -> time.struct_time:
+    return datetime.fromtimestamp(time.time() if seconds is None else seconds, KST).timetuple()
+
+
+def kst_formatter() -> logging.Formatter:
+    """로그 시각을 OS 시각대와 무관하게 KST 로 찍는 포매터 (§10)."""
+    formatter = logging.Formatter(LOG_FORMAT)
+    formatter.converter = _kst_time_tuple
+    return formatter
 
 
 def configure_logging(level: str) -> None:
@@ -21,5 +36,5 @@ def configure_logging(level: str) -> None:
         return
     handler = logging.StreamHandler(sys.stdout)
     handler.set_name(_HANDLER_NAME)
-    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    handler.setFormatter(kst_formatter())
     logger.addHandler(handler)
