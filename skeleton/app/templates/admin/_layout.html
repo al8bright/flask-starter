@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}관리자 · {{ project_name }}{% endblock %}
+{% block content %}
+{#- (endpoint, 이름, 활성 판정 키 — 현재 endpoint 이름에 이 문자열이 들어 있으면 활성) -#}
+{% set nav = [
+  ('admin.dashboard', '대시보드', 'dashboard'),
+  ('admin.users', '사용자', 'user'),
+  ('admin.sessions', '세션·로그인 잠금', 'session'),
+  ('admin.notices', '공지', 'notice'),
+  ('admin.banners', '배너', 'banner'),
+] %}
+<div class="grid gap-8 md:grid-cols-[12rem_1fr]">
+  <nav aria-label="관리자 메뉴" class="flex flex-row flex-wrap gap-1 md:flex-col">
+    {% for endpoint, label, key in nav %}
+      {% set active = key in request.endpoint %}
+      <a href="{{ url_for(endpoint) }}" class="rounded px-3 py-2 text-sm {{ 'bg-ink text-surface' if active else 'hover:bg-panel' }}"
+         {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <section>{% block admin %}{% endblock %}</section>
+</div>
+{% endblock %}

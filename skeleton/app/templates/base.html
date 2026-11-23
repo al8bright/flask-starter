@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ project_name }}{% endblock %}</title>
+  {#- htmx 설정 (ARCHITECTURE.md §13): eval 금지(CSP), 인라인 indicator 스타일 끔, 4xx·5xx 도 swap 해 오류 알림을 보여 준다. -#}
+  <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false,"historyCacheSize":0,"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":true,"error":true}]}'>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+{#- htmx 요청에 CSRF 토큰을 싣는다 — hx-headers 의 JSON 은 eval 하지 않는다. -#}
+<body class="min-h-screen bg-surface text-ink antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
+  <header class="border-b border-line bg-panel">
+    <nav class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
+      <a href="{{ url_for('public.home') }}" class="font-semibold">{{ project_name }}</a>
+      <a href="{{ url_for('public.notices') }}" class="text-sm text-muted hover:text-ink">공지사항</a>
+      <div class="ml-auto flex items-center gap-4 text-sm">
+        {% if current_user %}
+          {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('admin.dashboard') }}" class="text-muted hover:text-ink">관리자</a>
+          {% endif %}
+          <span class="text-muted">{{ current_user.username }}</span>
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            {{ csrf_field() }}
+            <button class="text-muted hover:text-ink">로그아웃</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('auth.login') }}" class="text-muted hover:text-ink">로그인</a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <div id="alerts" class="mx-auto max-w-5xl px-4" aria-live="polite">
+    {% for level, message in get_flashed_messages(with_categories=true) %}
+      {% include "partials/alert.html" %}
+    {% endfor %}
+  </div>
+
+  <main class="mx-auto max-w-5xl px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# === 환경설정 (절대 커밋 금지) ===
+.env
+.env.*
+!.env.example
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.sqlite3
+*.db
+# 업로드 파일(UPLOAD_DIR 기본값) — 사용자 업로드는 절대 커밋하지 않는다
+uploads/
+# 로그
+logs/
+
+# === 프론트 빌드 ===
+# Tailwind 빌드 결과(scripts/tailwind.*)와 내려받은 standalone CLI
+app/static/css/app.css
+.tools/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

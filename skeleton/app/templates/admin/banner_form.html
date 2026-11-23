@@ -1,0 +1,49 @@
+{% extends "admin/_layout.html" %}
+{% from "partials/fields.html" import field_error %}
+{#- datetime-local 값 — datetime 이면 "YYYY-MM-DDTHH:MM", 검증 실패로 되돌아온 문자열이면 그대로. -#}
+{% macro dt(value) -%}{{ value.strftime('%Y-%m-%dT%H:%M') if value is not string and value else (value or '') }}{%- endmacro %}
+{% block admin %}
+<a href="{{ url_for('admin.banners') }}" class="text-sm text-muted hover:text-ink">← 배너 목록</a>
+<h1 class="mt-2 text-2xl font-semibold">{{ '배너 수정' if banner else '새 배너' }}</h1>
+{% if errors._form %}{% with level="error", message=errors._form %}{% include "partials/alert.html" %}{% endwith %}{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="mt-6 space-y-4"
+      action="{{ url_for('admin.update_banner', banner_id=banner.id) if banner else url_for('admin.create_banner') }}">
+  {{ csrf_field() }}
+  <label class="block">
+    <span class="text-sm">제목</span>
+    <input name="title" value="{{ form.title }}" maxlength="200" required class="input mt-1">
+    {{ field_error(errors, 'title') }}
+  </label>
+  <div>
+    <span class="text-sm">이미지 (PNG·JPEG·WebP·GIF)</span>
+    {% if banner %}<img src="{{ banner.image_url }}" alt="" class="mt-1 max-h-40 rounded border border-line">{% endif %}
+    <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" {{ 'required' if not banner }} class="mt-1 block text-sm">
+    {{ field_error(errors, 'image_key') }}
+  </div>
+  <label class="block">
+    <span class="text-sm">대체 텍스트</span>
+    <input name="alt_text" value="{{ form.alt_text }}" maxlength="200" class="input mt-1">
+    {{ field_error(errors, 'alt_text') }}
+  </label>
+  <label class="block">
+    <span class="text-sm">링크 (https://… 또는 /경로)</span>
+    <input name="link_url" value="{{ form.link_url or '' }}" maxlength="500" class="input mt-1">
+    {{ field_error(errors, 'link_url') }}
+  </label>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <label class="block"><span class="text-sm">노출 시작</span>
+      <input type="datetime-local" name="starts_at" value="{{ dt(form.starts_at) }}" class="input mt-1">{{ field_error(errors, 'starts_at') }}</label>
+    <label class="block"><span class="text-sm">노출 종료</span>
+      <input type="datetime-local" name="ends_at" value="{{ dt(form.ends_at) }}" class="input mt-1">{{ field_error(errors, 'ends_at') }}</label>
+  </div>
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" {{ 'checked' if form.is_active }}> 사용</label>
+  <button class="btn-primary">저장</button>
+</form>
+
+{% if banner %}
+<form method="post" action="{{ url_for('admin.delete_banner', banner_id=banner.id) }}" class="mt-6" data-confirm="이 배너를 삭제할까요?">
+  {{ csrf_field() }}<button class="text-sm text-danger underline">배너 삭제</button>
+</form>
+{% endif %}
+{% endblock %}

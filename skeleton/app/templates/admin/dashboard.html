@@ -1,0 +1,20 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<h1 class="text-2xl font-semibold">대시보드</h1>
+{% set cards = [
+  ('사용자', stats.users.total, '활성 ' ~ stats.users.active ~ ' · 비활성 ' ~ stats.users.inactive),
+  ('활성 세션', stats.active_sessions, '로그인 잠금 ' ~ stats.locked_accounts ~ '건'),
+  ('공지', stats.notices.published, '게시 · 초안 ' ~ stats.notices.draft),
+  ('노출 중 배너', stats.active_banners, ''),
+] %}
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  {% for label, value, sub in cards %}
+    <div class="rounded-lg border border-line bg-panel p-4">
+      <p class="text-sm text-muted">{{ label }}</p>
+      <p class="mt-1 text-3xl font-semibold tabular-nums">{{ value }}</p>
+      {% if sub %}<p class="mt-1 text-xs text-muted">{{ sub }}</p>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+<p class="mt-6 text-sm text-muted">DB {{ '정상' if stats.db == 'ok' else '오류' }} · 마이그레이션 {{ stats.alembic_revision or '미적용' }}</p>
+{% endblock %}

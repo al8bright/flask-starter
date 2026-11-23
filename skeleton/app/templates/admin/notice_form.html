@@ -1,0 +1,66 @@
+{% extends "admin/_layout.html" %}
+{% from "partials/fields.html" import field_error %}
+{% block admin %}
+<a href="{{ url_for('admin.notices') }}" class="text-sm text-muted hover:text-ink">← 공지 목록</a>
+<h1 class="mt-2 text-2xl font-semibold">{{ '공지 수정' if notice else '새 공지' }}</h1>
+
+<form method="post" action="{{ url_for('admin.update_notice', notice_id=notice.id) if notice else url_for('admin.create_notice') }}" class="mt-6 space-y-4">
+  {{ csrf_field() }}
+  <label class="block">
+    <span class="text-sm">제목</span>
+    <input name="title" value="{{ form.title }}" maxlength="200" required class="input mt-1">
+    {{ field_error(errors, 'title') }}
+  </label>
+  <label class="block">
+    <span class="text-sm">본문 (HTML)</span>
+    <textarea name="body_html" rows="16" class="input mt-1 font-mono text-sm">{{ form.body_html }}</textarea>
+    <span class="mt-1 block text-xs text-muted">저장할 때 허용된 태그만 남깁니다(app/core/sanitize.py). 스크립트와 style 속성은 지워집니다.</span>
+    {{ field_error(errors, 'body_html') }}
+  </label>
+  <div class="flex gap-6 text-sm">
+    <label class="flex items-center gap-2"><input type="checkbox" name="is_pinned" {{ 'checked' if form.is_pinned }}> 상단 고정</label>
+    <label class="flex items-center gap-2"><input type="checkbox" name="is_published" {{ 'checked' if form.is_published }}> 게시</label>
+  </div>
+  <button class="btn-primary">저장</button>
+</form>
+
+<section class="mt-10 rounded-lg border border-line bg-panel p-4">
+  <h2 class="text-sm font-semibold">본문 이미지</h2>
+  {#- htmx 가 있으면 아래 영역에 붙여 넣을 코드를 보여 주고, 없으면 flash 로 알려 준다. -#}
+  <form method="post" action="{{ url_for('admin.upload_editor_image') }}" enctype="multipart/form-data" class="mt-2 flex flex-wrap items-center gap-2"
+        hx-post="{{ url_for('admin.upload_editor_image') }}" hx-encoding="multipart/form-data" hx-target="#editor-image" hx-swap="innerHTML">
+    {{ csrf_field() }}
+    <input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/gif" required class="text-sm">
+    <button class="btn">올리기</button>
+  </form>
+  <div id="editor-image" class="mt-2"></div>
+</section>
+
+{% if notice %}
+<section class="mt-6 rounded-lg border border-line bg-panel p-4">
+  <h2 class="text-sm font-semibold">첨부 파일</h2>
+  <ul class="mt-2 space-y-1 text-sm">
+    {% for a in notice.attachments %}
+      <li class="flex items-center gap-3">
+        <a href="{{ url_for('admin.download_attachment', notice_id=notice.id, attachment_id=a.id) }}" class="underline">{{ a.original_name }}</a>
+        <span class="text-muted">({{ (a.size_bytes / 1024) | round(1) }} KB)</span>
+        <form method="post" action="{{ url_for('admin.delete_attachment', notice_id=notice.id, attachment_id=a.id) }}" data-confirm="{{ a.original_name }} 을(를) 삭제할까요?">
+          {{ csrf_field() }}<button class="text-danger underline">삭제</button>
+        </form>
+      </li>
+    {% else %}
+      <li class="text-muted">첨부 파일이 없습니다.</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url_for('admin.add_attachment', notice_id=notice.id) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-2">
+    {{ csrf_field() }}
+    <input type="file" name="file" required class="text-sm">
+    <button class="btn">첨부</button>
+  </form>
+</section>
+
+<form method="post" action="{{ url_for('admin.delete_notice', notice_id=notice.id) }}" class="mt-6" data-confirm="이 공지를 삭제할까요? 첨부 파일도 함께 삭제됩니다.">
+  {{ csrf_field() }}<button class="text-sm text-danger underline">공지 삭제</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{#- 페이지 링크 — pages: app/web/pagination.PageLinks. target 이 있으면 htmx 로 그 영역만 바꾼다. -#}
+{% if pages.total_pages > 1 %}
+<nav class="mt-6 flex items-center justify-center gap-1 text-sm" aria-label="페이지"
+     {% if target %}hx-boost="true" hx-target="{{ target }}" hx-swap="outerHTML" hx-push-url="true"{% endif %}>
+  {% if pages.prev_url %}<a href="{{ pages.prev_url }}" class="rounded px-3 py-1 hover:bg-panel">이전</a>{% endif %}
+  {% for p in pages.pages %}
+    {% if p.current %}
+      <span class="rounded bg-ink px-3 py-1 text-surface" aria-current="page">{{ p.number }}</span>
+    {% else %}
+      <a href="{{ p.url }}" class="rounded px-3 py-1 hover:bg-panel">{{ p.number }}</a>
+    {% endif %}
+  {% endfor %}
+  {% if pages.next_url %}<a href="{{ pages.next_url }}" class="rounded px-3 py-1 hover:bg-panel">다음</a>{% endif %}
+</nav>
+{% endif %}

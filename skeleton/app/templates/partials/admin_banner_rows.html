@@ -1,0 +1,26 @@
+{#- 배너 행 묶음 — htmx 예제 3: 위·아래 이동 후 이 tbody 만 다시 그린다(app/web/admin/banners.py). -#}
+<tbody id="banner-rows">
+  {% for b in banners %}
+    {% set first, last = loop.first, loop.last %}
+    <tr>
+      <td>
+        <div class="flex gap-1">
+          {% for direction, label, arrow in [("up", "위로", "↑"), ("down", "아래로", "↓")] %}
+            <form method="post" action="{{ url_for('admin.move_banner', banner_id=b.id) }}"
+                  hx-post="{{ url_for('admin.move_banner', banner_id=b.id) }}" hx-target="#banner-rows" hx-swap="outerHTML">
+              {{ csrf_field() }}<input type="hidden" name="direction" value="{{ direction }}">
+              <button class="btn px-2 py-1" aria-label="{{ b.title }} {{ label }}"
+                      {{ "disabled" if (direction == "up" and first) or (direction == "down" and last) }}>{{ arrow }}</button>
+            </form>
+          {% endfor %}
+        </div>
+      </td>
+      <td><img src="{{ b.image_url }}" alt="" class="h-12 w-auto rounded border border-line"></td>
+      <td><a href="{{ url_for('admin.edit_banner', banner_id=b.id) }}" class="underline">{{ b.title }}</a></td>
+      <td class="text-sm">{{ b.starts_at.strftime('%Y-%m-%d %H:%M') if b.starts_at else '언제나' }} ~ {{ b.ends_at.strftime('%Y-%m-%d %H:%M') if b.ends_at else '' }}</td>
+      <td class="text-sm">{{ '사용' if b.is_active else '중지' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-sm text-muted">배너가 없습니다.</td></tr>
+  {% endfor %}
+</tbody>

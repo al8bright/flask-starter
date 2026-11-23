@@ -1,0 +1,4 @@
+{#- 폼 보조 매크로. errors: app/web/forms.parse_form 이 만든 {필드: 메시지}. -#}
+{% macro field_error(errors, name) -%}
+  {% if errors[name] %}<p class="mt-1 text-sm text-danger">{{ errors[name] }}</p>{% endif %}
+{%- endmacro %}

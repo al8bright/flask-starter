@@ -1,0 +1,88 @@
+/* Tailwind CSS v4 입력 파일 (ARCHITECTURE.md §15).
+ * 빌드 결과는 app/static/css/app.css 다(.gitignore 대상) — scripts/tailwind.ps1 · scripts/tailwind.sh 로 만든다.
+ *   개발: scripts/tailwind.ps1 -Watch   /   ./scripts/tailwind.sh --watch
+ *   배포: scripts/tailwind.ps1          /   ./scripts/tailwind.sh            (최소화 빌드)
+ */
+@import "tailwindcss";
+
+/* 클래스를 찾을 위치 — Jinja 템플릿과 정적 JS. */
+@source "../../templates";
+@source "../js";
+
+/* 디자인 토큰 — 색은 이 이름으로만 쓴다(bg-surface, text-muted 등). 다크 모드는 OS 설정을 따른다. */
+@theme {
+  --color-surface: #f8fafc;
+  --color-panel: #ffffff;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-accent: #2563eb;
+  --color-danger: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #0b1120;
+    --color-panel: #111827;
+    --color-ink: #e5e7eb;
+    --color-muted: #94a3b8;
+    --color-line: #1f2937;
+    --color-accent: #60a5fa;
+    --color-danger: #f87171;
+  }
+}
+
+@layer components {
+  .input {
+    @apply block w-full rounded-md border border-line bg-panel px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-none;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md border border-line bg-panel px-4 py-2 text-sm hover:bg-surface disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90;
+  }
+  .badge {
+    @apply inline-block rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent;
+  }
+  .table {
+    @apply w-full border-collapse text-left;
+  }
+  .table th {
+    @apply border-b border-line px-3 py-2 text-sm font-medium text-muted;
+  }
+  .table td {
+    @apply border-b border-line px-3 py-2 align-middle;
+  }
+
+  /* htmx 요청 중인 요소 — includeIndicatorStyles=false 라 직접 정의한다. */
+  .htmx-request {
+    @apply opacity-60;
+  }
+}
+
+/* 공지 본문(정화된 HTML) — 허용 태그·class 는 app/core/sanitize.py 와 한 쌍이다. */
+@layer components {
+  .rich-text {
+    @apply leading-7;
+  }
+  .rich-text :where(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4) {
+    @apply my-4;
+  }
+  .rich-text :where(h1) { @apply text-2xl font-semibold; }
+  .rich-text :where(h2) { @apply text-xl font-semibold; }
+  .rich-text :where(h3, h4) { @apply text-lg font-semibold; }
+  .rich-text :where(ul) { @apply list-disc pl-6; }
+  .rich-text :where(ol) { @apply list-decimal pl-6; }
+  .rich-text :where(a) { @apply text-accent underline; }
+  .rich-text :where(blockquote) { @apply border-l-4 border-line pl-4 text-muted; }
+  .rich-text :where(pre) { @apply overflow-x-auto rounded bg-panel p-3 text-sm; }
+  .rich-text :where(code) { @apply font-mono text-sm; }
+  .rich-text :where(img) { @apply h-auto max-w-full; }
+  .rich-text :where(table) { @apply w-full border-collapse; }
+  .rich-text :where(th, td) { @apply border border-line px-2 py-1; }
+  .rich-text .align-left { @apply text-left; }
+  .rich-text .align-center { @apply text-center; }
+  .rich-text .align-right { @apply text-right; }
+  .rich-text .video iframe { @apply aspect-video h-auto w-full; }
+}

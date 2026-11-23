@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+{% if banners %}
+<section class="grid gap-4 sm:grid-cols-2" aria-label="배너">
+  {% for b in banners %}
+    {% set img %}<img src="{{ b.image_url }}" alt="{{ b.alt_text or b.title }}" width="{{ b.width }}" height="{{ b.height }}" class="h-auto w-full rounded-lg border border-line">{% endset %}
+    {% if b.link_url %}<a href="{{ b.link_url }}">{{ img }}</a>{% else %}{{ img }}{% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="{{ 'mt-10' if banners }}">
+  <div class="flex items-baseline justify-between">
+    <h2 class="text-xl font-semibold">최근 공지</h2>
+    <a href="{{ url_for('public.notices') }}" class="text-sm text-muted hover:text-ink">전체 보기</a>
+  </div>
+  <ul class="mt-4 divide-y divide-line rounded-lg border border-line bg-panel">
+    {% for n in notices %}
+      <li><a href="{{ url_for('public.notice_detail', notice_id=n.id) }}" class="flex justify-between gap-4 px-4 py-3 hover:bg-surface">
+        <span>{% if n.is_pinned %}<span class="badge mr-2">고정</span>{% endif %}{{ n.title }}</span>
+        <span class="shrink-0 text-sm text-muted">{{ n.published_at.strftime('%Y-%m-%d') if n.published_at }}</span>
+      </a></li>
+    {% else %}
+      <li class="px-4 py-6 text-center text-sm text-muted">게시된 공지가 없습니다.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
