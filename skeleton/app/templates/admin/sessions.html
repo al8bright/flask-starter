@@ -1,47 +1,56 @@
 {% extends "admin/_layout.html" %}
 {% block admin %}
-<h1 class="text-2xl font-semibold">세션·로그인 잠금</h1>
-<h2 class="mt-8 text-lg font-semibold">활성 세션 <span class="text-sm font-normal text-muted">{{ result.total }}개</span></h2>
-<table class="table mt-2">
-  <thead><tr><th>사용자</th><th>로그인</th><th>마지막 사용</th><th>만료</th><th></th></tr></thead>
-  <tbody>
-    {% for s in result.items %}
-      <tr>
-        <td>{{ s.username }}</td>
-        <td class="text-sm">{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td class="text-sm">{{ s.last_used_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td class="text-sm">{{ s.expires_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td>
-          <form method="post" action="{{ url_for('admin.revoke_session', session_id=s.id) }}" data-confirm="이 세션을 폐기할까요?">
-            {{ csrf_field() }}<button class="text-sm text-danger underline">폐기</button>
-          </form>
-        </td>
-      </tr>
-    {% else %}
-      <tr><td colspan="5" class="text-center text-sm text-muted">활성 세션이 없습니다.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% include "partials/pagination.html" %}
+<div class="page-head"><h1>세션·로그인 잠금</h1></div>
 
-<h2 class="mt-10 text-lg font-semibold">로그인 실패 기록</h2>
-<table class="table mt-2">
-  <thead><tr><th>아이디</th><th>연속 실패</th><th>잠금 해제 시각</th><th></th></tr></thead>
-  <tbody>
-    {% for t in throttles %}
-      <tr>
-        <td>{{ t.username }}{% if t.is_locked %} <span class="badge">잠김</span>{% endif %}</td>
-        <td class="tabular-nums">{{ t.failed_count }}</td>
-        <td class="text-sm">{{ t.locked_until.strftime('%Y-%m-%d %H:%M') if t.locked_until else '-' }}</td>
-        <td>
-          <form method="post" action="{{ url_for('admin.clear_login_throttle', username=t.username) }}">
-            {{ csrf_field() }}<button class="text-sm underline">기록 지우기</button>
-          </form>
-        </td>
-      </tr>
-    {% else %}
-      <tr><td colspan="4" class="text-center text-sm text-muted">기록이 없습니다.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="mt-8" aria-labelledby="active-sessions">
+  <h2 id="active-sessions" class="pb-2 text-lg font-bold">활성 세션 <span class="text-sm font-normal text-muted">{{ result.total }}개</span></h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th scope="col">사용자</th><th scope="col">로그인</th><th scope="col">마지막 사용</th><th scope="col">만료</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
+      <tbody>
+        {% for s in result.items %}
+          <tr>
+            <td class="font-semibold">{{ s.username }}</td>
+            <td class="tabular-nums">{{ s.created_at.strftime('%Y.%m.%d %H:%M') }}</td>
+            <td class="tabular-nums">{{ s.last_used_at.strftime('%Y.%m.%d %H:%M') }}</td>
+            <td class="tabular-nums text-muted">{{ s.expires_at.strftime('%Y.%m.%d %H:%M') }}</td>
+            <td class="text-right">
+              <form method="post" action="{{ url_for('admin.revoke_session', session_id=s.id) }}" data-confirm="이 세션을 폐기할까요?">
+                {{ csrf_field() }}<button class="link-danger">폐기</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="py-10 text-center text-muted">활성 세션이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "partials/pagination.html" %}
+</section>
+
+<section class="mt-12" aria-labelledby="login-failures">
+  <h2 id="login-failures" class="pb-2 text-lg font-bold">로그인 실패 기록</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th scope="col">아이디</th><th class="text-center" scope="col">연속 실패</th><th scope="col">잠금 해제 시각</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
+      <tbody>
+        {% for t in throttles %}
+          <tr>
+            <td><span class="font-semibold">{{ t.username }}</span>{% if t.is_locked %} <span class="seal ml-1">잠김</span>{% endif %}</td>
+            <td class="text-center tabular-nums">{{ t.failed_count }}</td>
+            <td class="tabular-nums text-muted">{{ t.locked_until.strftime('%Y.%m.%d %H:%M') if t.locked_until else '-' }}</td>
+            <td class="text-right">
+              <form method="post" action="{{ url_for('admin.clear_login_throttle', username=t.username) }}">
+                {{ csrf_field() }}<button class="link text-sm">기록 지우기</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="py-10 text-center text-muted">로그인 실패 기록이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

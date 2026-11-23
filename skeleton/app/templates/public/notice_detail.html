@@ -1,21 +1,32 @@
 {% extends "base.html" %}
 {% block title %}{{ notice.title }} · {{ project_name }}{% endblock %}
 {% block content %}
-<article>
-  <a href="{{ url_for('public.notices') }}" class="text-sm text-muted hover:text-ink">← 공지사항</a>
-  <h1 class="mt-4 text-2xl font-semibold">{{ notice.title }}</h1>
-  <p class="mt-2 text-sm text-muted">{{ notice.published_at.strftime('%Y-%m-%d %H:%M') if notice.published_at }} · 조회 {{ notice.view_count }}</p>
+<article class="mx-auto max-w-3xl">
+  <header class="border-b-2 border-ink pb-4">
+    <a href="{{ url_for('public.notices') }}" class="back-link">공지사항</a>
+    <h1 class="text-2xl leading-snug font-bold tracking-tight sm:text-3xl">{{ notice.title }}</h1>
+  </header>
+  <dl class="flex flex-wrap gap-x-8 gap-y-1 border-b border-line py-3 text-sm">
+    <div class="flex gap-2"><dt class="text-muted">작성일</dt><dd class="tabular-nums">{{ notice.published_at.strftime('%Y.%m.%d %H:%M') if notice.published_at }}</dd></div>
+    <div class="flex gap-2"><dt class="text-muted">조회</dt><dd class="tabular-nums">{{ notice.view_count }}</dd></div>
+  </dl>
   {#- body_html 은 저장 시 서버가 정화한 값이다(core/sanitize.py) — |safe 는 이 필드에만 쓴다. -#}
-  <div class="rich-text mt-8">{{ notice.body_html | safe }}</div>
+  <div class="rich-text py-8">{{ notice.body_html | safe }}</div>
   {% if notice.attachments %}
-  <section class="mt-10 rounded-lg border border-line bg-panel p-4">
-    <h2 class="text-sm font-semibold">첨부 파일</h2>
-    <ul class="mt-2 space-y-1 text-sm">
+  <section class="panel" aria-labelledby="attachments">
+    <h2 id="attachments" class="panel-title">첨부 파일 {{ notice.attachments | length }}개</h2>
+    <ul class="divide-y divide-line text-sm">
       {% for a in notice.attachments %}
-        <li><a href="{{ a.download_url }}" class="underline">{{ a.original_name }}</a> <span class="text-muted">({{ (a.size_bytes / 1024) | round(1) }} KB)</span></li>
+        <li class="flex items-center justify-between gap-4 px-4 py-2.5">
+          <a href="{{ a.download_url }}" class="link min-w-0 truncate">{{ a.original_name }}</a>
+          <span class="shrink-0 tabular-nums text-muted">{{ (a.size_bytes / 1024) | round(1) }} KB</span>
+        </li>
       {% endfor %}
     </ul>
   </section>
   {% endif %}
+  <div class="mt-10 border-t border-line pt-6">
+    <a href="{{ url_for('public.notices') }}" class="btn">목록으로</a>
+  </div>
 </article>
 {% endblock %}

@@ -1,0 +1,6 @@
+{#- 알림 영역 — flash 메시지와 htmx 오류 알림(HX-Retarget: #alerts)이 들어간다. 화면 골격마다 한 번만 넣는다. -#}
+<div id="alerts" class="mx-auto w-full {{ alerts_width | default('max-w-5xl') }} px-4" aria-live="polite">
+  {% for level, message in get_flashed_messages(with_categories=true) %}
+    {% include "partials/alert.html" %}
+  {% endfor %}
+</div>

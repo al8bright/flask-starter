@@ -279,7 +279,8 @@ class RichTextEditor {
     this.statusText.hidden = this.uploading <= 0;
     this.statusText.textContent = this.uploading > 0 ? `이미지 올리는 중… (${this.uploading})` : "";
     // 업로드가 끝나기 전에는 저장 버튼을 막는다(제출 이벤트에서도 한 번 더 막는다).
-    this.form?.querySelectorAll('button:not([type]), button[type="submit"]').forEach((b) => {
+    // form.elements 는 form 속성으로 바깥에 둔 저장 버튼(공지 작성 화면 오른쪽 단)도 포함한다.
+    Array.from(this.form?.elements ?? []).filter((el) => el.type === "submit").forEach((b) => {
       b.disabled = this.uploading > 0;
     });
     this.renderFooter();

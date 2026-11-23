@@ -9,51 +9,96 @@
 @source "../../templates";
 @source "../js";
 
-/* 디자인 토큰 — 색은 이 이름으로만 쓴다(bg-surface, text-muted 등). 다크 모드는 OS 설정을 따른다. */
+/* 디자인 토큰 — 색은 이 이름으로만 쓴다(bg-surface, text-muted 등). 다크 모드는 OS 설정을 따른다.
+ * 사무 문서에서 착안한 기본값이다: 종이(surface)·먹(ink)·쪽빛(accent)·인주(seal — 고정·위험 표식).
+ * 생성 프로젝트는 이 블록의 값만 바꿔 자기 브랜드 색으로 쓴다. */
 @theme {
-  --color-surface: #f8fafc;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Malgun Gothic", "맑은 고딕", "Noto Sans KR", system-ui, sans-serif;
+
+  --color-surface: #f4f5f7;
   --color-panel: #ffffff;
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-line: #e2e8f0;
-  --color-accent: #2563eb;
-  --color-danger: #dc2626;
+  --color-ink: #1b2230;
+  --color-muted: #5d6675;
+  --color-line: #d9dde3;
+  --color-accent: #234a8c;
+  --color-on-accent: #ffffff;
+  --color-danger: #b8322a;
+  /* 관리자 왼쪽 메뉴(레일) — 다크 모드와 무관하게 어두운 면이다. */
+  --color-rail: #1b2230;
+  --color-rail-ink: #b9c2cf;
+  --color-rail-active: #9db8ea;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-surface: #0b1120;
-    --color-panel: #111827;
-    --color-ink: #e5e7eb;
-    --color-muted: #94a3b8;
-    --color-line: #1f2937;
-    --color-accent: #60a5fa;
-    --color-danger: #f87171;
+    --color-surface: #12151b;
+    --color-panel: #1a1f27;
+    --color-ink: #e6e8ec;
+    --color-muted: #9aa3b0;
+    --color-line: #2c333e;
+    --color-accent: #8fb0e8;
+    --color-on-accent: #12151b;
+    --color-danger: #ef7b70;
+    --color-rail: #0c0f14;
+    --color-rail-ink: #9aa3b0;
+    --color-rail-active: #8fb0e8;
   }
 }
 
+@layer base {
+  /* 한국어는 어절 단위로 줄을 바꾼다. 긴 URL·영문은 넘칠 때만 끊는다.
+     overflow-wrap: anywhere 는 쓰지 않는다 — 표의 최소 폭이 0 이 되어 좁은 화면에서 글자마다 줄이 바뀐다. */
+  body { word-break: keep-all; overflow-wrap: break-word; accent-color: var(--color-accent); }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-accent; }
+  h1, h2, h3 { @apply text-ink; }
+}
+
 @layer components {
+  /* 입력·버튼 */
   .input {
-    @apply block w-full rounded-md border border-line bg-panel px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-none;
+    @apply block w-full rounded border border-line bg-panel px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
   }
   .btn {
-    @apply inline-flex items-center justify-center rounded-md border border-line bg-panel px-4 py-2 text-sm hover:bg-surface disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-1.5 rounded border border-line bg-panel px-4 py-2 text-sm font-medium whitespace-nowrap text-ink hover:border-muted disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90;
+    @apply inline-flex items-center justify-center gap-1.5 rounded border border-accent bg-accent px-4 py-2 text-sm font-semibold whitespace-nowrap text-on-accent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40;
   }
-  .badge {
-    @apply inline-block rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent;
+  /* 글자 버튼·링크 — 표 안의 작은 동작(폐기·삭제·기록 지우기) */
+  .link { @apply text-accent underline-offset-4 hover:underline; }
+  .link-danger { @apply text-sm text-danger underline-offset-4 hover:underline; }
+
+  /* 표식 — 결재 도장에서 착안했다. seal(인주): 고정·잠김, badge(쪽빛): 게시·사용, draft(점선): 초안·중지 */
+  .badge, .seal, .draft {
+    @apply inline-flex shrink-0 items-center rounded-sm border px-1.5 text-xs leading-5 font-semibold whitespace-nowrap;
   }
-  .table {
-    @apply w-full border-collapse text-left;
-  }
-  .table th {
-    @apply border-b border-line px-3 py-2 text-sm font-medium text-muted;
-  }
-  .table td {
-    @apply border-b border-line px-3 py-2 align-middle;
-  }
+  .badge { @apply border-accent/60 text-accent; }
+  .seal { @apply border-2 border-danger text-danger; }
+  .draft { @apply border-dashed border-muted text-muted font-medium; }
+
+  /* 면 — 테두리 하나로 구분한다(그림자 없음). */
+  .panel { @apply rounded border border-line bg-panel; }
+  .panel-title { @apply border-b border-line px-4 py-3 text-sm font-semibold; }
+
+  /* 화면 제목 — 서류 표제처럼 아래를 굵은 먹선으로 닫는다. 오른쪽에 주요 동작을 둔다. */
+  .page-head { @apply flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink pb-3; }
+  .page-head h1 { @apply text-2xl font-bold tracking-tight; }
+  .back-link { @apply mb-3 inline-block text-sm text-muted hover:text-ink; }
+
+  /* 표 — 머리줄 위를 굵은 먹선으로 닫는 게시판형. 좁은 화면에서는 .table-wrap 이 가로로 스크롤한다. */
+  .table-wrap { @apply overflow-x-auto border-t-2 border-ink bg-panel; }
+  .table { @apply w-full border-collapse text-left text-sm; }
+  .table th { @apply border-b border-line bg-surface px-3 py-2.5 text-xs font-semibold whitespace-nowrap text-muted; }
+  .table td { @apply border-b border-line px-3 py-3 align-middle; }
+  .table tbody tr:hover { @apply bg-surface/60; }
+  .table .num { @apply w-16 text-center tabular-nums text-muted; }
+
+  /* 서식 표 — 왼쪽 항목명, 오른쪽 입력(넓은 화면). 좁으면 위아래로 쌓는다. */
+  .form-grid { @apply grid border-t-2 border-ink bg-panel sm:grid-cols-[10rem_1fr]; }
+  .form-grid > .label { @apply border-line bg-surface px-4 pt-3 text-sm font-semibold sm:border-b sm:py-4; }
+  .form-grid > .field { @apply border-b border-line px-4 pt-2 pb-4 sm:py-3; }
+  .hint { @apply mt-1 text-xs text-muted; }
 
   /* htmx 요청 중인 요소 — includeIndicatorStyles=false 라 직접 정의한다. */
   .htmx-request {
@@ -84,7 +129,7 @@
   .rich-text .align-left { @apply text-left; }
   .rich-text .align-center { @apply text-center; }
   .rich-text .align-right { @apply text-right; }
-  .rich-text :where(mark) { @apply rounded-sm bg-yellow-200 px-0.5 text-inherit; }
+  .rich-text :where(mark) { @apply rounded-sm bg-yellow-200 px-0.5 text-[#1b2230]; }
   /* 영상은 저장된 width 속성(편집기 크기 조절)을 따르되 화면보다 넓어지지 않는다. */
   .rich-text .video { @apply my-4 max-w-full; }
   .rich-text .video iframe { @apply block aspect-video h-auto max-w-full border-0; }

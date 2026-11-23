@@ -503,8 +503,9 @@ def _clear_settings_cache():
 
 | 위치 | 용도 |
 |---|---|
-| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block content %}`, 상단 내비(로그인 상태·관리자 메뉴·로그아웃 폼), `#alerts`(flash·오류 알림), `<body hx-headers>`(CSRF), `htmx-config` 메타 |
-| `templates/admin/_layout.html` | 관리자 사이드 메뉴 — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다 |
+| `templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block scripts %}`, 화면 골격 `{% block shell %}`(기본값은 공개 화면: 상단 내비·`{% block content %}`·바닥글), `<body hx-headers>`(CSRF), `htmx-config` 메타 |
+| `templates/admin/_layout.html` | 관리자 화면 골격 — `shell` 을 왼쪽 메뉴(레일)+본문으로 바꾼다. 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다 |
+| `templates/partials/alerts_region.html` | `#alerts`(flash·htmx 오류 알림) 영역 — 골격마다 한 번만 넣는다 |
 | `templates/<영역>/<화면>.html` | 전체 페이지(`public/`·`auth/`·`admin/`·`errors/`) |
 | `templates/partials/<이름>.html` | htmx 가 교체할 조각과 공용 조각(`alert`·`fields`·`pagination`). 전체 페이지는 같은 partial 을 `{% include %}` 한다 — 같은 마크업을 두 벌 두지 않는다 |
 
@@ -565,8 +566,10 @@ def _clear_settings_cache():
 
 ## 15. 스타일 — Tailwind CSS v4 (standalone CLI)
 
-- **CSS-first**: `app/static/css/input.css` 에 `@import "tailwindcss"`, 클래스 탐색 위치 `@source "../../templates"`·`@source "../js"`, 색 토큰 `@theme`(`surface`·`panel`·`ink`·`muted`·`line`·`accent`·`danger`, 다크 모드는 `prefers-color-scheme`). 별도 `tailwind.config.js` 를 두지 않는다.
-- 공용 컴포넌트 클래스(`input`·`btn`·`btn-primary`·`badge`·`table`·`rich-text` 등)는 `input.css` 의 `@layer components` 에 둔다.
+- **CSS-first**: `app/static/css/input.css` 에 `@import "tailwindcss"`, 클래스 탐색 위치 `@source "../../templates"`·`@source "../js"`, 디자인 토큰 `@theme`(글꼴 `--font-sans` 시스템 한글 글꼴, 색 `surface`·`panel`·`ink`·`muted`·`line`·`accent`·`on-accent`·`danger`, 관리자 레일 `rail`·`rail-ink`·`rail-active`, 다크 모드는 `prefers-color-scheme`). 생성 프로젝트는 토큰 값만 바꿔 자기 브랜드로 쓴다. 별도 `tailwind.config.js` 를 두지 않는다.
+- 공용 컴포넌트 클래스는 `input.css` 의 `@layer components` 에 둔다 — 입력·버튼(`input`·`btn`·`btn-primary`·`link`·`link-danger`), 표식(`badge` 게시·사용, `seal` 고정·잠김·오류, `draft` 초안·중지), 면(`panel`·`panel-title`), 화면 제목(`page-head`·`back-link`), 목록(`table-wrap`·`table`·`num`), 서식 표(`form-grid` + `label`·`field`, `hint`), 본문(`rich-text`).
+- 기본 화면은 사무 문서에서 착안하였다: 화면 제목·목록·서식 표의 위쪽을 굵은 먹선(`border-ink`)으로 닫고, 면은 그림자 없이 테두리 하나로 구분한다. 한국어 줄바꿈은 `word-break: keep-all` 이다(⛔ `overflow-wrap: anywhere` — 표 최소 폭이 0 이 되어 좁은 화면에서 글자마다 줄이 바뀐다).
+- 글꼴은 내려받지 않는다(CSP `font-src` 기본값 `'self'`). 웹 글꼴이 필요하면 `app/static/` 에 벤더링하고 버전·SHA-256 을 `scripts/versions.env` 에 기록한다.
 - **빌드**: `scripts/tailwind.ps1`(Windows) · `./scripts/tailwind.sh`(macOS/Linux) — `.tools/` 에 `TAILWIND_VERSION` 바이너리가 없을 때만 내려받고 **`scripts/tailwind-sha256sums.txt` 와 SHA-256 이 다르면 쓰지 않고 중단**한다. 개발 중에는 `-Watch` / `--watch`. ⛔ Node·npm 으로 빌드하지 않는다.
 - 출력 `app/static/css/app.css` 는 빌드 결과라 커밋하지 않는다(`.gitignore`). 배포 산출물을 만들 때 다시 빌드한다.
 - ⛔ 클래스 이름을 문자열 조합(`"text-" ~ color`)으로 만들지 않는다 — 빌드가 찾지 못한다. 조건부 클래스는 완성된 이름 전체를 쓴다.

@@ -1,5 +1,5 @@
 {#- 알림 한 건. level: success | error | info. htmx 오류 응답도 이 partial 을 #alerts 에 끼운다(app/web/errors.py). -#}
 <div role="{{ 'alert' if level == 'error' else 'status' }}"
-     class="mt-4 rounded-md border px-4 py-3 text-sm {{ 'border-danger/40 bg-danger/10 text-danger' if level == 'error' else 'border-line bg-panel' }}">
+     class="mt-4 rounded border-l-4 px-4 py-3 text-sm {{ 'border-danger bg-danger/10 text-danger' if level == 'error' else 'border-accent bg-panel text-ink' }}">
   {{ message }}
 </div>

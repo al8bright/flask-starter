@@ -15,35 +15,42 @@
 </head>
 {#- htmx 요청에 CSRF 토큰을 싣는다 — hx-headers 의 JSON 은 eval 하지 않는다. -#}
 <body class="min-h-screen bg-surface text-ink antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
-  <header class="border-b border-line bg-panel">
-    <nav class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-      <a href="{{ url_for('public.home') }}" class="font-semibold">{{ project_name }}</a>
-      <a href="{{ url_for('public.notices') }}" class="text-sm text-muted hover:text-ink">공지사항</a>
-      <div class="ml-auto flex items-center gap-4 text-sm">
-        {% if current_user %}
-          {% if current_user.role == 'admin' %}
-            <a href="{{ url_for('admin.dashboard') }}" class="text-muted hover:text-ink">관리자</a>
+  {#- 화면 골격 — 공개 화면은 아래 기본값, 관리자 화면은 admin/_layout.html 이 이 블록을 바꾼다. 어느 쪽이든 #alerts 는 하나다. -#}
+  {% block shell %}
+  <div class="flex min-h-screen flex-col">
+    <header class="border-t-4 border-accent border-b border-b-line bg-panel">
+      <nav class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4" aria-label="주 메뉴">
+        <a href="{{ url_for('public.home') }}" class="text-lg font-bold tracking-tight">{{ project_name }}</a>
+        {% set on_notices = request.endpoint and request.endpoint.startswith('public.notice') %}
+        <a href="{{ url_for('public.notices') }}" class="text-sm {{ 'font-semibold text-ink' if on_notices else 'text-muted hover:text-ink' }}"
+           {% if on_notices %}aria-current="page"{% endif %}>공지사항</a>
+        <div class="ml-auto flex items-center gap-4 text-sm">
+          {% if current_user %}
+            {% if current_user.role == 'admin' %}
+              <a href="{{ url_for('admin.dashboard') }}" class="text-muted hover:text-ink">관리자</a>
+            {% endif %}
+            <span class="text-muted">{{ current_user.username }}</span>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              {{ csrf_field() }}
+              <button class="text-muted hover:text-ink">로그아웃</button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('auth.login') }}" class="btn px-3 py-1.5">로그인</a>
           {% endif %}
-          <span class="text-muted">{{ current_user.username }}</span>
-          <form method="post" action="{{ url_for('auth.logout') }}">
-            {{ csrf_field() }}
-            <button class="text-muted hover:text-ink">로그아웃</button>
-          </form>
-        {% else %}
-          <a href="{{ url_for('auth.login') }}" class="text-muted hover:text-ink">로그인</a>
-        {% endif %}
-      </div>
-    </nav>
-  </header>
+        </div>
+      </nav>
+    </header>
 
-  <div id="alerts" class="mx-auto max-w-5xl px-4" aria-live="polite">
-    {% for level, message in get_flashed_messages(with_categories=true) %}
-      {% include "partials/alert.html" %}
-    {% endfor %}
+    {% include "partials/alerts_region.html" %}
+
+    <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="border-t border-line">
+      <p class="mx-auto max-w-5xl px-4 py-6 text-xs text-muted">{{ project_name }}</p>
+    </footer>
   </div>
-
-  <main class="mx-auto max-w-5xl px-4 py-8">
-    {% block content %}{% endblock %}
-  </main>
+  {% endblock %}
 </body>
 </html>

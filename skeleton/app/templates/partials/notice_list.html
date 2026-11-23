@@ -1,18 +1,43 @@
-{#- 공지 목록 partial — public/notices.html 과 htmx 검색 응답이 함께 쓴다. -#}
-<div id="notice-list" class="mt-6">
-  <p class="text-sm text-muted">{{ result.total }}건{% if q %} · "{{ q }}" 검색 결과{% endif %}</p>
-  <ul class="mt-2 divide-y divide-line rounded-lg border border-line bg-panel">
-    {% for n in result.items %}
-      <li><a href="{{ url_for('public.notice_detail', notice_id=n.id) }}" class="flex justify-between gap-4 px-4 py-3 hover:bg-surface">
-        <span>
-          {% if n.is_pinned %}<span class="badge mr-2">고정</span>{% endif %}{{ n.title }}
-          {% if n.has_attachments %}<span class="ml-1 text-xs text-muted">첨부</span>{% endif %}
-        </span>
-        <span class="shrink-0 text-sm text-muted">{{ n.published_at.strftime('%Y-%m-%d') if n.published_at }} · 조회 {{ n.view_count }}</span>
-      </a></li>
-    {% else %}
-      <li class="px-4 py-6 text-center text-sm text-muted">공지가 없습니다.</li>
-    {% endfor %}
-  </ul>
+{#- 공지 목록 partial — public/notices.html 과 htmx 검색 응답이 함께 쓴다.
+    번호는 최신 글이 큰 수인 게시판 관례를 따른다(전체 건수 기준). 고정 글은 번호 대신 표식을 보인다. -#}
+<div id="notice-list">
+  <p class="pb-2 text-sm text-muted">
+    {% if q %}"{{ q }}" 검색 결과 {{ result.total }}건{% else %}전체 {{ result.total }}건{% endif %}
+  </p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="num hidden sm:table-cell" scope="col">번호</th>
+          <th scope="col">제목</th>
+          <th class="hidden w-28 text-center sm:table-cell" scope="col">작성일</th>
+          <th class="hidden w-16 text-center sm:table-cell" scope="col">조회</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in result.items %}
+          <tr>
+            <td class="num hidden sm:table-cell">
+              {% if n.is_pinned %}<span class="seal">고정</span>{% else %}{{ result.total - (result.page - 1) * result.size - loop.index0 }}{% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('public.notice_detail', notice_id=n.id) }}" class="block hover:text-accent">
+                {% if n.is_pinned %}<span class="seal mr-1.5 sm:hidden">고정</span>{% endif %}
+                <span class="{{ 'font-semibold' if n.is_pinned }}">{{ n.title }}</span>
+                {% if n.has_attachments %}<span class="ml-1 text-xs text-muted">첨부</span>{% endif %}
+              </a>
+              <span class="mt-1 block text-xs tabular-nums text-muted sm:hidden">
+                {{ n.published_at.strftime('%Y.%m.%d') if n.published_at }}, 조회 {{ n.view_count }}
+              </span>
+            </td>
+            <td class="hidden text-center tabular-nums text-muted sm:table-cell">{{ n.published_at.strftime('%Y.%m.%d') if n.published_at }}</td>
+            <td class="hidden text-center tabular-nums text-muted sm:table-cell">{{ n.view_count }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="py-12 text-center text-muted">{{ '검색어와 맞는 공지가 없습니다. 다른 낱말로 찾아보세요.' if q else '아직 게시된 공지가 없습니다.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% with target="#notice-list" %}{% include "partials/pagination.html" %}{% endwith %}
 </div>

@@ -1,8 +1,8 @@
 {% extends "admin/_layout.html" %}
 {% block admin %}
-<h1 class="text-2xl font-semibold">사용자</h1>
+<div class="page-head"><h1>사용자</h1></div>
 <form method="get" class="mt-6 flex flex-wrap gap-2" role="search">
-  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="아이디 검색" aria-label="아이디 검색" class="input max-w-xs">
+  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="아이디로 찾기" aria-label="아이디 검색" class="input max-w-xs">
   <select name="role" class="input w-auto" aria-label="권한">
     <option value="">전체 권한</option>
     <option value="user" {{ 'selected' if role == 'user' }}>user</option>
@@ -10,12 +10,14 @@
   </select>
   <button class="btn">검색</button>
 </form>
-<p class="mt-4 text-sm text-muted">{{ result.total }}명</p>
-<table class="table mt-2">
-  <thead><tr><th>아이디</th><th>권한·활성</th><th>세션</th><th>가입</th><th></th></tr></thead>
-  <tbody>
-    {% for user in result.items %}{% include "partials/admin_user_row.html" %}{% endfor %}
-  </tbody>
-</table>
+<p class="mt-6 pb-2 text-sm text-muted">{{ result.total }}명</p>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th scope="col">아이디</th><th scope="col">권한·활성</th><th class="text-center" scope="col">세션</th><th scope="col">가입일</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
+    <tbody>
+      {% for user in result.items %}{% include "partials/admin_user_row.html" %}{% endfor %}
+    </tbody>
+  </table>
+</div>
 {% include "partials/pagination.html" %}
 {% endblock %}

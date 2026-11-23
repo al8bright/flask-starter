@@ -1,30 +1,39 @@
 {% extends "admin/_layout.html" %}
 {% block admin %}
-<div class="flex items-center justify-between">
-  <h1 class="text-2xl font-semibold">공지</h1>
-  <a href="{{ url_for('admin.new_notice') }}" class="btn-primary">새 공지</a>
+<div class="page-head">
+  <h1>공지</h1>
+  <a href="{{ url_for('admin.new_notice') }}" class="btn-primary">새 공지 쓰기</a>
 </div>
 <form method="get" class="mt-6 flex gap-2" role="search">
-  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="제목 검색" aria-label="제목 검색" class="input max-w-xs">
+  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="제목으로 찾기" aria-label="제목 검색" class="input max-w-xs">
   <button class="btn">검색</button>
 </form>
-<table class="table mt-4">
-  <thead><tr><th>제목</th><th>상태</th><th>작성자</th><th>조회</th><th>수정</th></tr></thead>
-  <tbody>
-    {% for n in result.items %}
-      <tr>
-        <td><a href="{{ url_for('admin.edit_notice', notice_id=n.id) }}" class="underline">{{ n.title }}</a>
-          {% if n.is_pinned %}<span class="badge ml-1">고정</span>{% endif %}
-          {% if n.has_attachments %}<span class="ml-1 text-xs text-muted">첨부</span>{% endif %}</td>
-        <td class="text-sm">{{ '게시' if n.is_published else '초안' }}</td>
-        <td class="text-sm">{{ n.author_username or '-' }}</td>
-        <td class="tabular-nums">{{ n.view_count }}</td>
-        <td class="text-sm text-muted">{{ n.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="5" class="text-center text-sm text-muted">공지가 없습니다.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<p class="mt-6 pb-2 text-sm text-muted">{{ result.total }}건</p>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">작성자</th><th class="text-center" scope="col">조회</th><th scope="col">수정일</th></tr></thead>
+    <tbody>
+      {% for n in result.items %}
+        <tr>
+          <td>
+            <a href="{{ url_for('admin.edit_notice', notice_id=n.id) }}" class="font-semibold hover:text-accent">{{ n.title }}</a>
+            {% if n.has_attachments %}<span class="ml-1 text-xs text-muted">첨부</span>{% endif %}
+          </td>
+          <td>
+            <div class="flex gap-1">
+              {% if n.is_published %}<span class="badge">게시</span>{% else %}<span class="draft">초안</span>{% endif %}
+              {% if n.is_pinned %}<span class="seal">고정</span>{% endif %}
+            </div>
+          </td>
+          <td class="text-muted">{{ n.author_username or '-' }}</td>
+          <td class="text-center tabular-nums">{{ n.view_count }}</td>
+          <td class="tabular-nums whitespace-nowrap text-muted">{{ n.updated_at.strftime('%Y.%m.%d %H:%M') }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="py-12 text-center text-muted">{{ '검색어와 맞는 공지가 없습니다.' if q else '아직 공지가 없습니다. 새 공지 쓰기로 첫 공지를 만드세요.' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% include "partials/pagination.html" %}
 {% endblock %}

@@ -12,8 +12,9 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 | 위치 | 용도 |
 |---|---|
-| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block content %}`, 상단 내비, `#alerts`(flash·오류 알림) |
-| `app/templates/admin/_layout.html` | 관리자 사이드 메뉴 — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다. 메뉴 항목은 이 파일의 목록에 추가한다 |
+| `app/templates/base.html` | 공통 레이아웃 — `{% block title %}`·`{% block content %}`, 상단 내비, 화면 골격 `{% block shell %}` |
+| `app/templates/admin/_layout.html` | 관리자 골격(왼쪽 메뉴 레일) — 관리자 화면은 이것을 extends 하고 `{% block admin %}` 을 채운다. 메뉴 항목은 이 파일의 목록에 추가한다 |
+| `app/templates/partials/alerts_region.html` | `#alerts`(flash·오류 알림) — 새 골격을 만들면 이것을 한 번 넣는다 |
 | `app/templates/<영역>/<화면>.html` | 전체 페이지 |
 | `app/templates/partials/<이름>.html` | htmx 가 교체할 조각. 전체 페이지는 같은 partial 을 `{% include %}` 한다 — 같은 마크업을 두 번 쓰지 않는다 |
 
@@ -52,8 +53,9 @@ description: __PROJECT_NAME__ 에 화면(페이지·폼·목록)을 추가하거
 
 ## 5. 스타일 (Tailwind CSS v4, §15)
 
-- 입력은 `app/static/css/input.css`(`@theme` 색 토큰 `surface`·`panel`·`ink`·`muted`·`line`·`accent`·`danger`, 공용 컴포넌트 `input`·`btn`·`btn-primary`·`badge`·`table`). 출력 `app/static/css/app.css` 는 빌드 결과라 커밋하지 않는다.
+- 입력은 `app/static/css/input.css`(`@theme` 디자인 토큰과 `@layer components` 공용 클래스 — 목록은 `ARCHITECTURE.md` §15). 출력 `app/static/css/app.css` 는 빌드 결과라 커밋하지 않는다.
 - Tailwind 는 `app/templates/`·`app/static/js/` 를 훑어 쓰인 클래스만 생성한다. ⛔ 클래스 이름을 문자열 조합(`"text-" ~ color`)으로 만들지 않는다 — 빌드가 찾지 못한다. 조건부 클래스는 완성된 이름 전체를 쓴다.
+- 화면 제목은 `page-head`(+ 오른쪽 주요 동작 `btn-primary`), 목록은 `table-wrap` 안의 `table`, 관리자 입력 폼은 `form-grid` 서식 표를 쓴다. 상태 표식은 `badge`·`seal`·`draft` 중에서 고른다.
 - 템플릿을 고치는 동안 `scripts/tailwind.ps1 -Watch`(Windows) 또는 `./scripts/tailwind.sh --watch` 를 띄워 둔다.
 
 ## 6. 테스트

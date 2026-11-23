@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ status }} · {{ project_name }}{% endblock %}
 {% block content %}
-<div class="py-16 text-center">
-  <p class="text-5xl font-bold text-muted">{{ status }}</p>
-  <p class="mt-4">{{ message }}</p>
-  <a href="{{ url_for('public.home') }}" class="mt-8 inline-block text-sm underline">홈으로</a>
+<div class="mx-auto max-w-md py-16 text-center">
+  <p class="text-6xl font-bold tabular-nums text-line">{{ status }}</p>
+  <p class="mt-6 text-lg">{{ message }}</p>
+  <a href="{{ url_for('public.home') }}" class="btn mt-8">홈으로 가기</a>
 </div>
 {% endblock %}

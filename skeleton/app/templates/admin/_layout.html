@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}관리자 · {{ project_name }}{% endblock %}
-{% block content %}
+{#- 관리자 화면 골격 — 공개 화면 머리글 대신 왼쪽 메뉴(레일)를 쓴다. 좁은 화면에서는 레일이 위쪽 가로 메뉴가 된다. -#}
+{% block shell %}
 {#- (endpoint, 이름, 활성 판정 키 — 현재 endpoint 이름에 이 문자열이 들어 있으면 활성) -#}
 {% set nav = [
   ('admin.dashboard', '대시보드', 'dashboard'),
@@ -9,14 +10,45 @@
   ('admin.notices', '공지', 'notice'),
   ('admin.banners', '배너', 'banner'),
 ] %}
-<div class="grid gap-8 md:grid-cols-[12rem_1fr]">
-  <nav aria-label="관리자 메뉴" class="flex flex-row flex-wrap gap-1 md:flex-col">
-    {% for endpoint, label, key in nav %}
-      {% set active = key in request.endpoint %}
-      <a href="{{ url_for(endpoint) }}" class="rounded px-3 py-2 text-sm {{ 'bg-ink text-surface' if active else 'hover:bg-panel' }}"
-         {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
-    {% endfor %}
-  </nav>
-  <section>{% block admin %}{% endblock %}</section>
+<div class="min-h-screen md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
+  {#- 레일 배경은 바깥 칸이 맡고(본문이 길어도 끝까지 이어진다), 안쪽 aside 만 화면 높이로 고정한다. -#}
+  <div class="bg-rail text-rail-ink">
+  <aside class="md:sticky md:top-0 md:flex md:h-screen md:flex-col">
+    <div class="flex items-center justify-between gap-3 px-5 pt-4 pb-3 md:block md:pt-7 md:pb-6">
+      <div>
+        <a href="{{ url_for('admin.dashboard') }}" class="text-base font-bold tracking-tight text-white">{{ project_name }}</a>
+        <p class="text-xs md:mt-1">관리자</p>
+      </div>
+      {#- 좁은 화면: 계정 동작을 첫 줄 오른쪽에 둔다(아래 계정 칸은 넓은 화면에서만 보인다). -#}
+      <div class="flex gap-4 text-sm md:hidden">
+        <a href="{{ url_for('public.home') }}" class="hover:text-white">공개 화면</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          {{ csrf_field() }}<button class="hover:text-white">로그아웃</button>
+        </form>
+      </div>
+    </div>
+    <nav aria-label="관리자 메뉴" class="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:overflow-visible md:pb-0">
+      {% for endpoint, label, key in nav %}
+        {% set active = key in request.endpoint %}
+        <a href="{{ url_for(endpoint) }}"
+           class="rounded-r border-l-2 px-3 py-2 text-sm whitespace-nowrap {{ 'border-rail-active bg-white/10 font-semibold text-white' if active else 'border-transparent hover:bg-white/5 hover:text-white' }}"
+           {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="hidden border-t border-white/10 px-5 py-5 text-sm md:block">
+      <p class="font-semibold text-white">{{ current_user.username }}</p>
+      <div class="mt-2 flex gap-4">
+        <a href="{{ url_for('public.home') }}" class="hover:text-white">공개 화면</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          {{ csrf_field() }}<button class="hover:text-white">로그아웃</button>
+        </form>
+      </div>
+    </div>
+  </aside>
+  </div>
+  <div class="min-w-0">
+    {% with alerts_width="max-w-6xl" %}{% include "partials/alerts_region.html" %}{% endwith %}
+    <main class="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">{% block admin %}{% endblock %}</main>
+  </div>
 </div>
 {% endblock %}

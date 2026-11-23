@@ -9,18 +9,24 @@
             <form method="post" action="{{ url_for('admin.move_banner', banner_id=b.id) }}"
                   hx-post="{{ url_for('admin.move_banner', banner_id=b.id) }}" hx-target="#banner-rows" hx-swap="outerHTML">
               {{ csrf_field() }}<input type="hidden" name="direction" value="{{ direction }}">
-              <button class="btn px-2 py-1" aria-label="{{ b.title }} {{ label }}"
+              <button class="btn size-8 p-0" aria-label="{{ b.title }} {{ label }}"
                       {{ "disabled" if (direction == "up" and first) or (direction == "down" and last) }}>{{ arrow }}</button>
             </form>
           {% endfor %}
         </div>
       </td>
-      <td><img src="{{ b.image_url }}" alt="" class="h-12 w-auto rounded border border-line"></td>
-      <td><a href="{{ url_for('admin.edit_banner', banner_id=b.id) }}" class="underline">{{ b.title }}</a></td>
-      <td class="text-sm">{{ b.starts_at.strftime('%Y-%m-%d %H:%M') if b.starts_at else '언제나' }} ~ {{ b.ends_at.strftime('%Y-%m-%d %H:%M') if b.ends_at else '' }}</td>
-      <td class="text-sm">{{ '사용' if b.is_active else '중지' }}</td>
+      <td><img src="{{ b.image_url }}" alt="" class="h-12 w-20 rounded-sm border border-line object-cover"></td>
+      <td><a href="{{ url_for('admin.edit_banner', banner_id=b.id) }}" class="font-semibold hover:text-accent">{{ b.title }}</a></td>
+      <td class="tabular-nums text-muted">
+        {%- if b.starts_at or b.ends_at -%}
+          {{ b.starts_at.strftime('%Y.%m.%d %H:%M') if b.starts_at else '처음부터' }} ~ {{ b.ends_at.strftime('%Y.%m.%d %H:%M') if b.ends_at else '계속' }}
+        {%- else -%}
+          기간 제한 없음
+        {%- endif -%}
+      </td>
+      <td>{% if b.is_active %}<span class="badge">사용</span>{% else %}<span class="draft">중지</span>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="text-center text-sm text-muted">배너가 없습니다.</td></tr>
+    <tr><td colspan="5" class="py-12 text-center text-muted">아직 배너가 없습니다. 새 배너 만들기로 홈 화면에 보일 배너를 추가하세요.</td></tr>
   {% endfor %}
 </tbody>

@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% block title %}공지사항 · {{ project_name }}{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold">공지사항</h1>
-{#- htmx 예제 1: 입력하면 목록 partial 만 바꾸고 URL 도 갱신한다. htmx 가 없으면 일반 GET 검색 폼이다. -#}
-<form method="get" action="{{ url_for('public.notices') }}" role="search" class="mt-6 flex gap-2"
-      hx-get="{{ url_for('public.notices') }}" hx-target="#notice-list" hx-swap="outerHTML" hx-push-url="true"
-      hx-trigger="input changed delay:300ms from:input[name=q], submit">
-  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="제목 검색" aria-label="제목 검색" class="input">
-  <button class="btn">검색</button>
-</form>
+<div class="flex flex-wrap items-end justify-between gap-4 pb-4">
+  <h1 class="text-2xl font-bold tracking-tight">공지사항</h1>
+  {#- htmx 예제 1: 입력하면 목록 partial 만 바꾸고 URL 도 갱신한다. htmx 가 없으면 일반 GET 검색 폼이다. -#}
+  <form method="get" action="{{ url_for('public.notices') }}" role="search" class="flex w-full gap-2 sm:w-auto"
+        hx-get="{{ url_for('public.notices') }}" hx-target="#notice-list" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="input changed delay:300ms from:input[name=q], submit">
+    <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="제목으로 찾기" aria-label="제목 검색" class="input sm:w-64">
+    <button class="btn">검색</button>
+  </form>
+</div>
 {% include "partials/notice_list.html" %}
 {% endblock %}

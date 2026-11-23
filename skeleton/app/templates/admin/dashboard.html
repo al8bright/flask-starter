@@ -1,20 +1,34 @@
 {% extends "admin/_layout.html" %}
 {% block admin %}
-<h1 class="text-2xl font-semibold">대시보드</h1>
-{% set cards = [
-  ('사용자', stats.users.total, '활성 ' ~ stats.users.active ~ ' · 비활성 ' ~ stats.users.inactive),
-  ('활성 세션', stats.active_sessions, '로그인 잠금 ' ~ stats.locked_accounts ~ '건'),
-  ('공지', stats.notices.published, '게시 · 초안 ' ~ stats.notices.draft),
-  ('노출 중 배너', stats.active_banners, ''),
+<div class="page-head"><h1>대시보드</h1></div>
+{#- 집계 칸 — 칸마다 해당 관리 화면으로 이동한다. 칸 사이 선은 gap-px 사이로 보이는 bg-line 이다. -#}
+{% set cells = [
+  ('admin.users', '사용자', stats.users.total, '활성 ' ~ stats.users.active ~ '명, 비활성 ' ~ stats.users.inactive ~ '명'),
+  ('admin.sessions', '활성 세션', stats.active_sessions, '로그인 잠금 ' ~ stats.locked_accounts ~ '건'),
+  ('admin.notices', '게시 중인 공지', stats.notices.published, '초안 ' ~ stats.notices.draft ~ '건'),
+  ('admin.banners', '노출 중인 배너', stats.active_banners, '사용 중이고 노출 기간 안인 배너'),
 ] %}
-<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-  {% for label, value, sub in cards %}
-    <div class="rounded-lg border border-line bg-panel p-4">
-      <p class="text-sm text-muted">{{ label }}</p>
-      <p class="mt-1 text-3xl font-semibold tabular-nums">{{ value }}</p>
-      {% if sub %}<p class="mt-1 text-xs text-muted">{{ sub }}</p>{% endif %}
-    </div>
+<div class="mt-6 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+  {% for endpoint, label, value, sub in cells %}
+    <a href="{{ url_for(endpoint) }}" class="block bg-panel px-5 py-5 hover:bg-surface">
+      <p class="text-sm font-semibold text-muted">{{ label }}</p>
+      <p class="mt-2 text-4xl font-bold tracking-tight tabular-nums">{{ value }}</p>
+      <p class="mt-2 text-xs text-muted">{{ sub }}</p>
+    </a>
   {% endfor %}
 </div>
-<p class="mt-6 text-sm text-muted">DB {{ '정상' if stats.db == 'ok' else '오류' }} · 마이그레이션 {{ stats.alembic_revision or '미적용' }}</p>
+
+<section class="panel mt-8" aria-labelledby="system">
+  <h2 id="system" class="panel-title">시스템 상태</h2>
+  <dl class="divide-y divide-line text-sm">
+    <div class="flex items-center justify-between gap-4 px-4 py-3">
+      <dt class="text-muted">데이터베이스</dt>
+      <dd>{% if stats.db == 'ok' %}<span class="badge">DB 정상</span>{% else %}<span class="seal">DB 오류</span>{% endif %}</dd>
+    </div>
+    <div class="flex items-center justify-between gap-4 px-4 py-3">
+      <dt class="text-muted">마이그레이션 리비전</dt>
+      <dd class="font-mono text-xs">{{ stats.alembic_revision or '미적용' }}</dd>
+    </div>
+  </dl>
+</section>
 {% endblock %}
