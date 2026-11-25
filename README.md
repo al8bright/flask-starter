@@ -7,7 +7,8 @@
 flask-starter/
 ├── scaffold.ps1            # ★ Windows (PowerShell) 스캐폴드
 ├── scaffold.sh             # ★ macOS / Linux / Git Bash 스캐폴드 — 동작 동일
-├── LICENSE                 # MIT
+├── LICENSE                 # MIT — 템플릿 자체. 생성 프로젝트는 MIT-0(아래 「라이선스」)
+├── SECURITY.md             # 보안 정책 — 취약점은 비공개 제보로
 ├── .github/                # 이 템플릿 저장소 자체의 CI (workflows/template-ci.yml · scripts/ PS 5.1 구문 검사)
 ├── README.md               # (이 파일)
 ├── AGENTS.md / CLAUDE.md   # 이 템플릿 저장소 작업용 AI 에이전트 지침 (생성 프로젝트용은 skeleton/ 안)
@@ -288,8 +289,37 @@ python tools\check_projects.py --audit --files --output 점검.md      # 경로�
   Windows 에서는 `scaffold.ps1`(PowerShell 5.1)과 `scaffold.sh`(Git Bash) 생성물이 같은지 비교하고 생성물 pytest·`tailwind.ps1` 을 돌린다(`scaffold-windows`).
   생성물을 `postgres:16` 에 붙여 Alembic 왕복을 하고(`migrations-postgres`), `pip-audit` 를 차단 단계로 실행하며(`dependency-audit`), 점검 도구 단위 테스트를 돌린다(`tools-test`).
 
-## 라이선스와 기여
+## 라이선스
 
-이 프로젝트는 [MIT License](LICENSE)로 배포된다.
-변경 이력은 [`CHANGELOG.md`](CHANGELOG.md)에서 확인할 수 있으며,
-버그 수정이나 개선은 한 가지 목적에 집중한 이슈 또는 pull request 로 제안해 주세요.
+| 대상 | 라이선스 | 표기 의무 |
+|---|---|---|
+| 이 저장소(스캐폴드 스크립트·`tools/`·문서 등) | [MIT License](LICENSE) | 복사·재배포할 때 저작권·허가 문구를 포함한다 |
+| `skeleton/` 아래 파일과, 스캐폴드가 그것으로 **생성한 프로젝트** | MIT No Attribution(MIT-0, 아래 전문) | 없다 |
+| `skeleton/app/static/js/htmx.min.js` | htmx 의 Zero-Clause BSD | 없다 |
+
+생성 프로젝트는 표기 의무 없이 사내·비공개·상용 프로젝트로 쓰거나 다른 라이선스로 배포할 수 있다.
+생성 프로젝트에는 `LICENSE` 파일을 두지 않았다 — 프로젝트의 라이선스는 사용자가 정한다.
+
+```text
+MIT No Attribution
+
+Copyright 2026 al8bright
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## 보안 제보와 기여
+
+- 보안 취약점은 공개 이슈에 올리지 않고 GitHub 의 비공개 취약점 제보(Security → Report a vulnerability)로 알린다. 절차와 지원 범위는 [`SECURITY.md`](SECURITY.md)에 있다.
+- 버그 수정·개선 제안은 한 가지 목적에 집중한 이슈 또는 pull request 로 한다. 변경 이력은 [`CHANGELOG.md`](CHANGELOG.md)에 있다.

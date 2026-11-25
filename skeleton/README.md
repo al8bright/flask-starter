@@ -218,6 +218,11 @@ flowchart LR
 `-dirty` 가 붙어 있으면 템플릿에 커밋하지 않은 변경이 있는 상태에서 생성한 것이고, `unknown` 이면 git 없이 받은 템플릿에서 생성한 것이다.
 ⛔ 같은 폴더에 다시 스캐폴드하지 않는다 — 골격 파일을 덮어쓴다.
 
+### 라이선스
+
+생성된 골격 코드는 flask-starter 의 MIT No Attribution(MIT-0) 조건으로 받은 것이라 저작권 표기 의무가 없다. 프로젝트의 라이선스는 직접 정한다(골격에 `LICENSE` 파일을 두지 않았다).
+함께 들어 있는 `app/static/js/htmx.min.js` 는 htmx 의 Zero-Clause BSD 이며 역시 표기 의무가 없다. 외부 라이브러리를 새로 벤더링하면 그 라이선스의 고지 조건을 확인한다.
+
 ## 개발 워크플로
 
 `main` 에서 TDD 의 Red → Green → Refactor 순서로 진행하고 바로 커밋·push 한다. 브랜치와 PR 은 선택이다. Structural 과 Behavioral 변경은 한 커밋에 섞지 않는다.

@@ -25,6 +25,7 @@
 | `docs/` | 템플릿 문서 — 검토 기록(`reviews/`)·보관 기록(`archive/`). 스캐폴드 시 복사되지 않는다. 작성 규칙은 [`docs/README.md`](docs/README.md) |
 | `TODO.md` | 재개발 작업 계획(작업 중에만 둔다 — 아래 「문서 갱신」) |
 | `CHANGELOG.md` | 템플릿 변경 이력 |
+| `LICENSE` · `SECURITY.md` | 템플릿 라이선스(MIT — 생성 프로젝트는 README 「라이선스」의 MIT-0) · 보안 정책(비공개 취약점 제보) |
 | `README.md` | 템플릿 사용법·버전 고정 정책·검증 상태 |
 
 템플릿 CI(`template-ci.yml`)는 push 이후 도는 사후 안전망이다. 커밋 전 게이트는 아래 「검증 절차」다.
@@ -48,6 +49,7 @@
 - 규칙(기준)이 바뀌면 `skeleton/ARCHITECTURE.md`(+ 필요 시 `skeleton/AGENTS.md`)를 고치고, ★핵심 MUST 요약을 최신으로 유지한다.
 - 기능·설정을 제거하면 관련 이름을 저장소 전체에서 검색해 코드 주석·env 선언·문서 서술까지 함께 정리한다.
 - htmx·Tailwind CLI 처럼 저장소에 들이는 외부 바이너리·스크립트는 버전을 `skeleton/scripts/versions.env` 에 기록하고 무결성(SHA-256·npm integrity)을 확인한 것만 쓴다(`stack-versions` 스킬 §5-2).
+  `skeleton/` 에 벤더링하는 외부 코드는 생성 프로젝트에 고지 의무를 지우지 않는 라이선스(0BSD·MIT-0 등)인지 확인하고, 고지가 필요하면 루트 README 「라이선스」 표와 생성 프로젝트 README 에 함께 기록한다.
 
 ### 공통 계층
 
