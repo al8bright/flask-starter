@@ -7,14 +7,14 @@ flask-wtf==1.3.0
 wtforms==3.3.2
 waitress==3.0.2
 gunicorn==27.0.1; sys_platform != "win32"
-sqlalchemy==2.1.8
+sqlalchemy==2.1.9
 alembic==1.20.1
 psycopg2-binary==2.9.13
-pydantic==2.14.2
-pydantic-settings==2.16.2
+pydantic==2.14.4
+pydantic-settings==2.16.3
 PyJWT==2.15.1
 bcrypt==5.0.0
-nh3==0.3.7
+nh3==0.3.8
 pillow==13.0.0
 pytest==9.2.0
 ruff==0.17.3
