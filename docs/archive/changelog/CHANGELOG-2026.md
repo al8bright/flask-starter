@@ -112,17 +112,17 @@
 
 ### Removed (제거)
 
-- 기존 Flask 프로젝트 생성기(CLI·i18n·게시판 예제)를 제거하였다(`d724356`).
+- 기존 Flask 프로젝트 생성기(CLI·i18n·게시판 예제)를 제거하였다(`1bbd781`).
 
 ### Added (추가)
 
-- **`skeleton/`**: Flask 3 + Jinja + htmx + PostgreSQL 골격(`b5d6081`).
+- **`skeleton/`**: Flask 3 + Jinja + htmx + PostgreSQL 골격(`1cba1df`).
   - 공통 계층(`config`·`cli`·`core`·`db`·`models`·`schemas`·`services`·`alembic` 과 테스트 5개)을 `fastapi-react-pg-starter` 의 `skeleton/backend/` 에서 파일 그대로 복사하였다. 원본과 파일 단위로 같음을 diff 로 확인하였다.
   - 웹 계층: 앱 팩토리(`app/main.py`), 요청별 DB 세션·현재 사용자·권한 데코레이터(`app/dependencies.py`), 블루프린트(`public`·`auth`·`admin`·`api`·`files`), 오류 응답(JSON·htmx alert·오류 페이지), 보안 헤더(CSP `script-src 'self'`·`style-src 'self'`).
   - 인증: `auth_sessions` 불투명 토큰을 httpOnly·SameSite=Lax 쿠키로 보내고 요청마다 DB 에서 확인한다. CSRF 는 Flask-WTF `CSRFProtect` 전역.
   - 화면: 공개 홈·공지 목록/상세, 로그인, 관리자 대시보드·사용자·세션·공지(첨부·본문 이미지)·배너. htmx 예제 3곳(공지 검색·사용자 행 저장·배너 순서 변경), htmx 2.0.11 벤더링.
   - Tailwind CSS v4.3.5 standalone CLI 빌드 스크립트(`scripts/tailwind.*`) — SHA-256 을 확인한 바이너리만 쓴다.
-- **`scaffold.sh`·`scaffold.ps1`**, **`skeleton/scripts/bootstrap.*`**: 형제 템플릿 스크립트를 바탕으로 프론트엔드(pnpm)·DESIGN.md 테마 단계를 빼고, `.env` 를 프로젝트 루트에 만들고, Tailwind 빌드 단계를 넣었다. bootstrap 은 Python·PostgreSQL 만 다룬다(`3cc11cb`).
+- **`scaffold.sh`·`scaffold.ps1`**, **`skeleton/scripts/bootstrap.*`**: 형제 템플릿 스크립트를 바탕으로 프론트엔드(pnpm)·DESIGN.md 테마 단계를 빼고, `.env` 를 프로젝트 루트에 만들고, Tailwind 빌드 단계를 넣었다. bootstrap 은 Python·PostgreSQL 만 다룬다(`b8cc69f`).
 - **문서**: 루트 `README.md`·`AGENTS.md`·`CLAUDE.md`·`CHANGELOG.md`·`docs/README.md`·`.gitignore`, 생성 프로젝트용 `skeleton/README.md`·`AGENTS.md`·`CLAUDE.md`·`PLAN.md`·`docs/README.md` 와 스킬 5종(`add-domain`·`db-migration`·`add-screen`·`pr-workflow`·`stack-versions`). `skeleton/scripts/versions.env` 에 벤더링한 htmx 버전(`HTMX_VERSION`)을 기록하였다.
 
 ### Fixed (수정)
