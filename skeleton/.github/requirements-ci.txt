@@ -1,0 +1,4 @@
+# CI·lock 도구 핀 — 사람이 고치는 입력이다. 해시 고정본은 requirements-ci.lock(python scripts/lock.py 가 만든다).
+# pip-audit: 의존성 취약점 스캔, uv: requirements.lock 생성·검사(scripts/lock.py). 상향 절차는 stack-versions 스킬 §5-1.
+pip-audit==2.10.1
+uv==0.13.10

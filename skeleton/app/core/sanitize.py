@@ -8,10 +8,13 @@
 - iframe 은 유튜브 임베드(youtube-nocookie / www.youtube 의 /embed/<11자 ID>, 쿼리 금지)만 남긴다.
   src 가 걸러진 iframe 은 후처리로 내용째 지운다. 남는 iframe 에는 sandbox 등 보안 속성을 강제한다.
 - a 에는 rel="noopener noreferrer" 를 강제한다. URL 스킴은 http·https·mailto·tel(+ 상대 경로)만 허용한다.
+
+한 줄 평문 입력(아이디 등)의 제어·서식 문자 검사(has_unsafe_text_chars)도 여기에 둔다.
 """
 
 import html as html_lib
 import re
+import unicodedata
 
 import nh3
 
@@ -101,3 +104,18 @@ def is_html_empty(html: str | None) -> bool:
         return False
     text = html_lib.unescape(nh3.clean(html, tags=set()))
     return not text.replace("\xa0", " ").strip()
+
+
+# ---------------------------------------------------------------------------
+# 한 줄 평문 입력(아이디 등)
+# ---------------------------------------------------------------------------
+
+# 한 줄 평문 입력에 허용하지 않는 유니코드 범주 — 제어(Cc: 개행·ESC 등), 서식(Cf: 양방향 재정렬
+# U+202E·폭 없는 문자 등), 서로게이트(Cs), 줄·문단 구분자(Zl U+2028·Zp U+2029).
+# 로그 한 줄을 끊어 가짜 기록을 끼워 넣거나(로그 주입), 화면에서 다른 글자처럼 보이게 하는 데 쓰인다.
+UNSAFE_TEXT_CATEGORIES: frozenset[str] = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+
+
+def has_unsafe_text_chars(value: str) -> bool:
+    """제어·서식·구분 문자(UNSAFE_TEXT_CATEGORIES)가 하나라도 있으면 True."""
+    return any(unicodedata.category(ch) in UNSAFE_TEXT_CATEGORIES for ch in value)

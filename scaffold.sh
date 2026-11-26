@@ -13,7 +13,14 @@
 #   --skip-install         venv/pip 설치 + alembic + Tailwind CSS 빌드 생략
 #   --db-host/--db-port/--db-user/--db-password/--db-name
 #                          DB 접속 정보 기본값 (대화형이면 Enter 로 수락, 비밀번호는 지정하면 묻지 않는다)
+#                          값 규칙: DB 이름은 영문자·숫자·'_'(63자 이하), 호스트는 호스트 이름·IPv4
+#                          (영문자·숫자·'.'·'-'·'_') 또는 [IPv6], 사용자는 제어 문자·큰따옴표 금지,
+#                          포트는 1~65535. 어기면 중단한다(scaffold.ps1 과 같다).
 #   -h, --help             이 도움말
+#
+# 환경변수:
+#   SCAFFOLD_DB_PASSWORD   DB 비밀번호 (권장). ⚠️ --db-password 는 프로세스 목록·셸 기록에 남아 경고를 내며
+#                          호환용으로만 남긴다. 둘 다 있으면 인자가 우선한다. 대화형이면 지정하지 않고 프롬프트로 넣는다.
 #
 # 사전 요구: python3. Node·pnpm 은 필요 없다(CSS 는 Tailwind standalone CLI 로 빌드한다).
 #            psql 은 PATH 에 없어도 표준 설치 경로를 탐색한다. 찾지 못하면 DB 단계만 건너뛴다.
@@ -21,7 +28,7 @@
 # 대상 폴더: 비어 있지 않으면 대화형은 y/N 확인, 비대화형은 중단한다.
 #            템플릿 저장소 자신·그 하위·그 상위 폴더는 항상 거부한다.
 # 종료 코드: 0 = 모든 단계 완료
-#            1 = 중단(입력 오류, 대상 폴더 거부, 런타임 미충족, 복사·치환 실패)
+#            1 = 중단(입력 오류, 대상 폴더 거부, 런타임 미충족, 복사·치환 실패, .env 생성·권한 제한 실패)
 #            2 = 골격은 생성됐지만 일부 단계(pip·DB·alembic·CSS 빌드 등)가 미완료 — 마지막 요약 참고
 
 # ---------- 템플릿 설정 ----------
@@ -46,6 +53,7 @@ DB_HOST="localhost"
 DB_PORT="5432"
 DB_USER="postgres"
 DB_PASSWORD=""
+_DB_PW_ARG=0
 DB_NAME=""
 
 # 값이 필요한 옵션의 값 누락 검사 (누락 시 무한 루프 방지)
@@ -60,7 +68,7 @@ while [ $# -gt 0 ]; do
     --db-host)      _need_val "$1" $#; DB_HOST="$2"; shift 2 ;;
     --db-port)      _need_val "$1" $#; DB_PORT="$2"; shift 2 ;;
     --db-user)      _need_val "$1" $#; DB_USER="$2"; shift 2 ;;
-    --db-password)  _need_val "$1" $#; DB_PASSWORD="$2"; shift 2 ;;
+    --db-password)  _need_val "$1" $#; DB_PASSWORD="$2"; _DB_PW_ARG=1; shift 2 ;;
     --db-name)      _need_val "$1" $#; DB_NAME="$2"; shift 2 ;;
     -h|--help)      sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "알 수 없는 옵션: $1" >&2; exit 1 ;;
@@ -128,6 +136,13 @@ _path_within() {
 
 # ---------- 1. 이름·생성 위치 (런타임 설치보다 먼저 검증해 잘못된 입력이면 아무것도 하지 않고 끝낸다) ----------
 step "신규 프로젝트 스캐폴드"
+# DB 비밀번호 — ⚠️ 명령줄 인자는 프로세스 목록·셸 기록에 남는다. 환경변수 SCAFFOLD_DB_PASSWORD 를 권장하고,
+# 인자는 호환용으로만 받는다(둘 다 있으면 인자 우선, 빈 값은 지정하지 않은 것으로 본다 — scaffold.ps1 과 같다).
+if [ "$_DB_PW_ARG" = "1" ] && [ -n "$DB_PASSWORD" ]; then
+  warn "--db-password 인자는 프로세스 목록·셸 기록에 남습니다 — 환경변수 SCAFFOLD_DB_PASSWORD 를 쓰세요."
+elif [ -n "${SCAFFOLD_DB_PASSWORD:-}" ]; then
+  DB_PASSWORD="$SCAFFOLD_DB_PASSWORD"
+fi
 [ -z "$NAME" ] && read -r -p "프로젝트 이름 (예: project_test): " NAME
 [ -z "$NAME" ] && die "프로젝트 이름이 필요합니다."
 # ⛔ 이름은 Python 문자열 리터럴(app/main.py)·HTML 제목과 기본 생성 위치(부모/<이름>)에 그대로 들어간다.
@@ -324,6 +339,28 @@ if [ "$_need_bootstrap" = "1" ]; then
 fi
 
 # ---------- 3. DB 접속 정보 ----------
+# DB 접속 값 검사 — 값은 psql 인자·SQL 식별자·.env 의 DATABASE_URL 에 들어간다. 규칙은 scaffold.ps1 의 Assert-DbValues 와 같다.
+#  - 이름: 영문자·숫자·'_' 1~63자(PostgreSQL 식별자 한도 — 넘으면 서버가 조용히 잘라 URL 과 어긋난다)
+#  - 호스트: URL 에 인코딩 없이 들어가므로 허용 목록 — 호스트 이름·IPv4(영문자·숫자·'.'·'-'·'_') 또는 [IPv6]
+#  - 사용자: 제어 문자·큰따옴표 금지(URL 에는 인코딩해 넣는다), 포트: 1~65535
+#  - 비밀번호: URL 에는 인코딩해 넣으므로(%0A 등) 제한하지 않는다. ⛔ 그래서 .env 에 줄바꿈이 들어갈 수 없다.
+#  로케일에 따라 A-Z 범위가 다른 문자를 포함할 수 있어 문자 집합을 명시한다(위 _alnum).
+_check_db_values() {
+  local _db_name_re="^[${_alnum}_]{1,63}\$"
+  local _db_host_re="^([${_alnum}._-]{1,253}|\\[[0123456789ABCDEFabcdef:.]{2,45}\\])\$"
+  [[ "$DB_NAME" =~ $_db_name_re ]] || die "DB 이름은 영문자·숫자·'_' 1~63자만 쓸 수 있습니다: $DB_NAME"
+  [[ "$DB_HOST" =~ $_db_host_re ]] \
+    || die "DB 호스트는 호스트 이름·IPv4(영문자·숫자·'.'·'-'·'_') 또는 [IPv6] 만 쓸 수 있습니다: $DB_HOST"
+  case "$DB_USER" in
+    ''|*[[:cntrl:]]*|*'"'*) die "DB 사용자는 1~63자이고 제어 문자·큰따옴표(\")를 쓸 수 없습니다." ;;
+  esac
+  [ "${#DB_USER}" -le 63 ] || die "DB 사용자는 1~63자이고 제어 문자·큰따옴표(\")를 쓸 수 없습니다."
+  case "$DB_PORT" in
+    ''|*[!0-9]*) die "DB 포트는 1~65535 여야 합니다: $DB_PORT" ;;
+  esac
+  { [ "${#DB_PORT}" -le 5 ] && [ "$DB_PORT" -ge 1 ] && [ "$DB_PORT" -le 65535 ]; } \
+    || die "DB 포트는 1~65535 여야 합니다: $DB_PORT"
+}
 if [ $SKIP_DB -eq 0 ]; then
   step "PostgreSQL 접속 정보 (psql 로 DB 생성)"
   if [ -t 0 ]; then
@@ -334,6 +371,8 @@ if [ $SKIP_DB -eq 0 ]; then
     read -r -p "DB name [$DB_NAME]: " i; [ -n "$i" ] && DB_NAME="$i"
   fi
 fi
+# --skip-db 여도 값은 .env 의 DATABASE_URL 에 들어가므로 항상 검사한다.
+_check_db_values
 
 # psql 활성화 — 배포판·설치 방식에 따라 psql 이 PATH 에 없을 수 있다
 # (macOS Postgres.app, Debian/Ubuntu 의 /usr/lib/postgresql/<ver>/bin, keg-only Homebrew formula).
@@ -390,6 +429,7 @@ if [ $SKIP_DB -eq 0 ] && command -v psql >/dev/null 2>&1; then
       read -r -p "DB user [$DB_USER]: " i; [ -n "$i" ] && DB_USER="$i"
       read -r -s -p "DB password [기존값 유지]: " i; echo; [ -n "$i" ] && DB_PASSWORD="$i"
       read -r -p "DB name [$DB_NAME]: " i; [ -n "$i" ] && DB_NAME="$i"
+      _check_db_values
       continue
     fi
     warn "DB 접속 불가로 판단 — DB 생성/마이그레이션 단계를 건너뜁니다"
@@ -398,11 +438,8 @@ if [ $SKIP_DB -eq 0 ] && command -v psql >/dev/null 2>&1; then
   done
 fi
 
-# DB 이름 따옴표 검사 (SQL 구문 오류를 난해한 메시지 대신 명확한 에러로)
-case "$DB_NAME" in
-  *"'"*|*'"'*) die "DB 이름에 따옴표(' \")는 사용할 수 없습니다: $DB_NAME" ;;
-esac
-# 사용자·비밀번호는 URL 인코딩해 DATABASE_URL 에 넣는다 (@ : / # ? % 등 특수문자 안전).
+# 사용자·비밀번호는 URL 인코딩해 DATABASE_URL 에 넣는다 (@ : / # ? % 줄바꿈 등 특수문자 안전).
+# 호스트·이름은 위 _check_db_values 의 허용 목록을 통과한 값이라 인코딩이 필요 없다.
 # ⛔ 인코딩 실패 시 원문 폴백을 두지 않는다 — 특수문자 비밀번호가 인코딩 없이 URL 에 들어가면
 #    "생성은 성공했는데 DB 접속만 조용히 실패"하는 프로젝트가 나온다. 런타임 사전 검사(위)가
 #    python3 를 보장하므로 이 실패는 비정상 상황이고, 즉시 중단이 맞다.
@@ -416,6 +453,8 @@ DB_USER_ENC="$(_urlenc "$DB_USER")" \
 DB_PASSWORD_ENC="$(_urlenc "$DB_PASSWORD")" \
   || die "DB 비밀번호 URL 인코딩에 실패했습니다 (python3 확인) — 중단합니다."
 DATABASE_URL="postgresql+psycopg2://${DB_USER_ENC}:${DB_PASSWORD_ENC}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+# ⛔ 방어 이중화 — 제어 문자(줄바꿈 등)가 남아 있으면 .env 에 다른 키를 끼워 넣을 수 있다. 쓰기 전에 중단한다.
+case "$DATABASE_URL" in *[[:cntrl:]]*) die "DATABASE_URL 에 제어 문자가 있습니다 — 중단합니다." ;; esac
 # SECRET_KEY 는 Flask 서명 쿠키(flash·CSRF 토큰)의 서명키이므로 반드시 암호학적 난수여야 한다.
 # ⛔ 타임스탬프 폴백(change-me-<epoch>)은 생성 시각만 추측하면 서명키가 복원되어 쿠키 위조로
 #    직결된다 — 난수를 만들 수 없으면 약한 키로 진행하지 말고 즉시 중단한다.
@@ -497,12 +536,16 @@ tokens = [
     (b"__PROJECT_SNAKE__", os.fsencode(env["SCAFFOLD_SNAKE"])),
 ]
 
+# os.walk 는 기본값(followlinks=False)으로 링크 폴더를 따라가지 않는다. 링크 파일도 건너뛴다 —
+# 쓰기가 링크 너머의 대상 밖 원본에 닿는다(scaffold.ps1 의 ReparsePoint 건너뛰기와 같다).
 for root, dirs, files in os.walk(target):
     dirs[:] = [d for d in dirs if d not in prune]
     for fn in files:
         if os.path.splitext(fn)[1] not in exts:
             continue
         path = os.path.join(root, fn)
+        if os.path.islink(path):
+            continue
         with open(path, "rb") as fh:
             content = fh.read()
         new = content
@@ -584,12 +627,12 @@ if [ $SKIP_INSTALL -eq 0 ]; then
     warn "venv 생성 실패 — 'python3 -m venv .venv' 로 직접 확인하세요"
     _incomplete "venv 생성"
   else
-    ( cd "$TARGET" && "$_VPY" -m pip install --upgrade pip -q ) \
-      || warn "pip 자체 업그레이드 실패 — 기존 pip 로 계속합니다"
-    if ( cd "$TARGET" && "$_VPY" -m pip install -r requirements.txt ); then
+    # ⛔ pip 자체를 --upgrade 로 올리지 않는다(고정되지 않은 최신 pip 를 받는다). venv 에 딸린 pip 로
+    #    전이 의존성까지 해시로 고정한 requirements.lock 을 설치한다 — 해시가 다른 파일은 설치하지 않는다(scaffold.ps1 과 같다).
+    if ( cd "$TARGET" && "$_VPY" -m pip install --require-hashes -r requirements.lock ); then
       ok "의존성 설치 완료"
     else
-      warn "pip install 미완료 — '$VPY_HINT -m pip install -r requirements.txt'"
+      warn "pip install 미완료 — '$VPY_HINT -m pip install --require-hashes -r requirements.lock'"
       _incomplete "의존성 설치 (pip install)"
     fi
   fi
@@ -711,7 +754,7 @@ if [ $SKIP_INSTALL -ne 0 ]; then
   printf '[설치]    --skip-install 로 생략한 단계를 먼저 실행 (Python %s 이상):\n' "${MIN_PYTHON:-3.13}"
   printf '  cd "%s"\n' "$TARGET"
   printf '  python3 -m venv .venv\n'
-  printf '  %s -m pip install -r requirements.txt\n' "$VPY_HINT"
+  printf '  %s -m pip install --require-hashes -r requirements.lock\n' "$VPY_HINT"
   [ $SKIP_DB -eq 0 ] && printf '  %s -m alembic upgrade head\n' "$VPY_HINT"
   printf '  %s\n\n' "$CSS_HINT"
 fi

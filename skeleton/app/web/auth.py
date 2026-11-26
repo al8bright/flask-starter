@@ -1,6 +1,6 @@
 """로그인·로그아웃 (ARCHITECTURE.md §9) — 얇은 HTTP 계층.
 
-로그인 성공 → auth_sessions 행 생성 → 불투명 토큰을 httpOnly 쿠키(AUTH_COOKIE)로 심는다.
+로그인 성공 → auth_sessions 행 생성 → 불투명 토큰을 httpOnly 쿠키(auth_cookie_name())로 심는다.
 로그아웃(POST) → 세션 폐기 + 쿠키 삭제. GET 으로는 로그아웃하지 않는다(링크·prefetch 로 끊기지 않게).
 실패 사유는 응답으로 구분하지 않는다(user_service.authenticate). 잠금 중이면 429 + Retry-After.
 """
@@ -8,7 +8,7 @@
 from flask import Blueprint, Response, make_response, redirect, render_template, request, session, url_for
 
 from app.dependencies import (
-    AUTH_COOKIE,
+    auth_cookie_name,
     clear_auth_cookie,
     current_user,
     get_db,
@@ -49,7 +49,8 @@ def login_submit() -> Response:
 
     db = get_db()
     try:
-        user = user_service.authenticate(db, data.username, data.password)
+        # 잠금은 (아이디, 접속 IP) 칸 단위다 — 프록시 뒤라면 TRUSTED_PROXY_HOPS 가 맞아야 실제 IP 가 들어온다.
+        user = user_service.authenticate(db, data.username, data.password, client_ip=request.remote_addr)
     except ServiceError as e:
         status = LOGIN_STATUS_BY_CODE.get(e.code, status_for_code(e.code))
         response = make_response(
@@ -71,7 +72,7 @@ def login_submit() -> Response:
 
 @bp.post("/logout")
 def logout() -> Response:
-    token = request.cookies.get(AUTH_COOKIE)
+    token = request.cookies.get(auth_cookie_name())
     if token:
         session_service.revoke(get_db(), token)
     session.clear()

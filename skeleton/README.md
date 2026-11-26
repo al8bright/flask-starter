@@ -67,7 +67,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 # Windows
 python --version
 python -m venv .venv
-.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock
 .\scripts\tailwind.ps1
 ```
 
@@ -75,7 +75,7 @@ python -m venv .venv
 # macOS / Linux
 python3 --version
 python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt
+./.venv/bin/python -m pip install --require-hashes -r requirements.lock
 ./scripts/tailwind.sh
 ```
 
@@ -292,7 +292,8 @@ CI 와 같은 검사다 — `pytest.ini` 의 `filterwarnings` 가 `DeprecationWa
 | `css` | Ubuntu 는 `tailwind.sh`, Windows 는 PowerShell 5.1 로 `tailwind.ps1` — 내려받기·SHA-256 검증·빌드 |
 | `migrations` | `postgres:16` 서비스 컨테이너에 `alembic upgrade head` → `check` → `downgrade base` → `upgrade head` |
 | `powershell-syntax` | 모든 `.ps1` 을 Windows PowerShell 5.1 로 파싱하고 PS7 전용 문법을 찾는다 |
-| `audit` | `pip-audit -r requirements.txt` — 경고성(새 CVE 로 CI 가 실패하지 않게 `continue-on-error`). 로그를 주기적으로 확인한다 |
+| `lock` | `requirements.lock` 이 `requirements.txt` 와 맞는지 다시 만들어 비교한다(`scripts/lock.py --check`) |
+| `audit` | `pip-audit -r requirements.lock` — 경고성(새 CVE 로 CI 가 실패하지 않게 `continue-on-error`). 로그를 주기적으로 확인한다 |
 
 ## 환경 설정
 
@@ -318,7 +319,7 @@ CI 와 같은 검사다 — `pytest.ini` 의 `filterwarnings` 가 `DeprecationWa
 
 ### Python 패키지 — 전부 `==` 정확 고정
 
-재현성을 우선한다. ⛔ 임의 `pip install -U` 금지 — 상향은 `stack-versions` 스킬의 검증 절차를 따른다. SSOT 는 [`requirements.txt`](requirements.txt).
+재현성을 우선한다. ⛔ 임의 `pip install -U` 금지 — 상향은 `stack-versions` 스킬의 검증 절차를 따른다. SSOT 는 [`requirements.txt`](requirements.txt)이고, 설치는 전이 의존성까지 해시로 고정한 [`requirements.lock`](requirements.lock)으로 한다(`pip install --require-hashes -r requirements.lock`). 핀을 바꾸면 `python -B scripts/lock.py` 로 lock 을 다시 만든다(`stack-versions` 스킬 §5).
 
 | 패키지 | 고정 버전 | 패키지 | 고정 버전 |
 |---|---|---|---|

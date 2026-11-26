@@ -7,7 +7,6 @@
 """
 
 import logging
-from datetime import timedelta
 
 from sqlalchemy import case, func, inspect, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -27,13 +26,14 @@ from app.schemas.admin import (
     UserCounts,
 )
 from app.schemas.common import Page
-from app.services import banner_service, health_service, session_service
+from app.services import banner_service, health_service, session_service, user_service
 from app.services.exceptions import ServiceError
 
 audit = logging.getLogger("app.audit")
 
 # 로그인 스로틀 목록에 보일 "최근 실패" 범위. 잠금 중인 행은 기간과 무관하게 보인다.
-RECENT_FAILURE_WINDOW = timedelta(hours=24)
+# 운영 CLI(cleanup-auth)의 정리 기준과 같은 값이다 — 목록에 보이는 행은 정리되지 않는다.
+RECENT_FAILURE_WINDOW = user_service.LOGIN_THROTTLE_RETENTION
 LOGIN_THROTTLE_LIST_LIMIT = 200
 
 
@@ -78,8 +78,10 @@ def dashboard(db: Session) -> DashboardRead:
         active_sessions=_scalar_count(
             db, select(func.count()).select_from(AuthSession).where(session_service.active_session_filter())
         ),
+        # 잠긴 칸(IP 칸·전체 합산 칸)이 하나라도 있는 username 수.
         locked_accounts=_scalar_count(
-            db, select(func.count()).select_from(LoginThrottle).where(LoginThrottle.locked_until > current)
+            db,
+            select(func.count(func.distinct(LoginThrottle.username))).where(LoginThrottle.locked_until > current),
         ),
         notices=NoticeCounts(published=published, draft=notices_total - published),
         active_banners=_scalar_count(
@@ -234,18 +236,25 @@ def revoke_session(db: Session, session_id: int) -> None:
 
 
 def list_login_throttles(db: Session) -> list[LoginThrottleRead]:
-    """잠금 중이거나 최근(24시간) 실패가 있는 계정 — 잠금 먼저, 그다음 최근 실패 순."""
+    """잠금 중이거나 최근(24시간) 실패가 있는 칸 — 잠금 먼저, 그다음 최근 실패 순.
+
+    한 username 에 IP 칸 여러 개와 전체 합산 칸(client_ip=None 으로 내보낸다)이 함께 보일 수 있다.
+    """
     current = now()
     is_locked = LoginThrottle.locked_until > current
     stmt = (
         select(LoginThrottle)
-        .where(or_(is_locked, LoginThrottle.last_failed_at >= current - RECENT_FAILURE_WINDOW))
-        .order_by(case((is_locked, 0), else_=1), LoginThrottle.last_failed_at.desc())
+        .where(
+            LoginThrottle.failed_count > 0,
+            or_(is_locked, LoginThrottle.last_failed_at >= current - RECENT_FAILURE_WINDOW),
+        )
+        .order_by(case((is_locked, 0), else_=1), LoginThrottle.last_failed_at.desc(), LoginThrottle.id.desc())
         .limit(LOGIN_THROTTLE_LIST_LIMIT)
     )
     return [
         LoginThrottleRead(
             username=t.username,
+            client_ip=None if t.client_ip == user_service.GLOBAL_THROTTLE_KEY else t.client_ip,
             failed_count=t.failed_count,
             locked_until=t.locked_until,
             last_failed_at=t.last_failed_at,
@@ -256,10 +265,7 @@ def list_login_throttles(db: Session) -> list[LoginThrottleRead]:
 
 
 def clear_login_throttle(db: Session, username: str) -> None:
-    """잠금 해제·실패 카운트 초기화(행 삭제). 없으면 조용히 넘어간다(멱등)."""
-    throttle = db.execute(select(LoginThrottle).where(LoginThrottle.username == username)).scalar_one_or_none()
-    if throttle is None:
-        return
-    db.delete(throttle)
-    db.commit()
-    audit.info("로그인 잠금 해제(관리자): username=%s", username)
+    """username 의 잠금 해제·실패 카운트 초기화 — IP 칸과 전체 합산 칸을 모두 지운다. 없으면 조용히 넘어간다(멱등)."""
+    if user_service.clear_login_throttles(db, username):
+        # username 은 URL 경로에서 온 값이다 — %r 로 남겨 개행·제어 문자가 로그 줄을 위조하지 못하게 한다.
+        audit.info("로그인 잠금 해제(관리자): username=%r", username)

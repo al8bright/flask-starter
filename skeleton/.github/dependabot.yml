@@ -1,0 +1,34 @@
+# Dependabot — 액션 SHA 핀과 Python 핀을 매주 PR 로 올린다.
+#
+# - cooldown 1일: 배포 후 24시간이 지난 버전만 PR 로 올린다(stack-versions 스킬 §4 의 24시간 기준).
+# - ⚠️ pip PR 은 requirements.txt(·.github/requirements-ci.txt)만 바꾼다. requirements.lock 은 바뀌지 않아 CI 의 lock 잡이
+#   실패하므로, 같은 PR 에서 `python scripts/lock.py` 로 lock 을 다시 만들어 올린 뒤 병합한다
+#   (기준 시각 LOCK_EXCLUDE_NEWER 도 함께 옮긴다 — stack-versions 스킬 §5-1).
+# - PR 을 받으면 §5 검증(pip check·ruff·pytest, 필요하면 PostgreSQL 마이그레이션)을 거친다. 자동 병합하지 않는다.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    cooldown:
+      default-days: 1
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    # requirements.txt(앱 의존성)와 .github/requirements-ci.txt(CI 도구 — pip-audit·uv)
+    directories:
+      - /
+      - /.github
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    cooldown:
+      default-days: 1

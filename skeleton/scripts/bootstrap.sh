@@ -278,7 +278,7 @@ EOF
 # scaffold.sh 가 부를 때는 아래 단계를 scaffold 가 곧바로 수행하므로 생략한다(bootstrap.ps1 과 같다).
 if [ "$SKIP_NEXT_STEPS" = "0" ]; then
   cat <<'EOF'
-2) 의존성:        python3 -m venv .venv && ./.venv/bin/python -m pip install -r requirements.txt
+2) 의존성:        python3 -m venv .venv && ./.venv/bin/python -m pip install --require-hashes -r requirements.lock
 3) CSS 빌드:      ./scripts/tailwind.sh
 4) DB 마이그레이션: .env 의 DATABASE_URL 확인 후  ./.venv/bin/python -m alembic upgrade head
 자세한 내용은 README.md 참조.

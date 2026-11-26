@@ -9,7 +9,7 @@ flask-starter/
 ├── scaffold.sh             # ★ macOS / Linux / Git Bash 스캐폴드 — 동작 동일
 ├── LICENSE                 # MIT — 템플릿 자체. 생성 프로젝트는 MIT-0(아래 「라이선스」)
 ├── SECURITY.md             # 보안 정책 — 취약점은 비공개 제보로
-├── .github/                # 이 템플릿 저장소 자체의 CI (workflows/template-ci.yml · scripts/ PS 5.1 구문 검사)
+├── .github/                # 이 템플릿 저장소 자체의 CI (workflows/template-ci.yml · scripts/ PS 5.1 구문 검사) · dependabot.yml
 ├── README.md               # (이 파일)
 ├── AGENTS.md / CLAUDE.md   # 이 템플릿 저장소 작업용 AI 에이전트 지침 (생성 프로젝트용은 skeleton/ 안)
 ├── CHANGELOG.md            # 템플릿 변경 이력
@@ -25,9 +25,9 @@ flask-starter/
     ├── docs/               # 프로젝트 고유 문서 (PRD·유저 플로우·기획서 등)
     ├── .claude/skills/     # AI 작업 스킬 5종
     ├── .python-version / .env.example / .gitignore / .gitattributes
-    ├── .github/            # 생성된 프로젝트의 CI(workflows/ci.yml) · PS 5.1 구문 검사 · PR 템플릿
-    ├── requirements.txt / pyproject.toml / pytest.ini / alembic.ini
-    ├── scripts/            # bootstrap · tailwind (sh / ps1) · versions.env · tailwind-sha256sums.txt
+    ├── .github/            # 생성된 프로젝트의 CI(workflows/ci.yml) · PS 5.1 구문 검사 · PR 템플릿 · dependabot.yml · CI 도구 lock
+    ├── requirements.txt / requirements.lock / pyproject.toml / pytest.ini / alembic.ini
+    ├── scripts/            # bootstrap · tailwind (sh / ps1) · lock.py · versions.env · tailwind-sha256sums.txt
     ├── deploy/             # 운영 배포 예시 — systemd · nginx · deploy.sh (Linux)
     ├── app/                # Flask 앱 — web/(뷰) · templates/ · static/(js/editor/ 공지 편집기) + 공통 계층(config·core·db·models·schemas·services)
     ├── alembic/            # 마이그레이션
@@ -175,7 +175,8 @@ chmod +x scaffold.sh          # zip 으로 받아 실행 권한이 없을 때만
 |--------|------|
 | `-SkipDb` | psql DB 생성 + alembic 마이그레이션 생략 |
 | `-SkipInstall` | venv/pip 설치 + alembic + Tailwind CSS 빌드 생략 — 「실행 방법」 앞에 생략한 단계를 안내한다 |
-| `-DbHost/-DbPort/-DbUser/-DbPassword/-DbName` | DB 접속정보 기본값 — 대화형이면 Enter 로 수락, 비밀번호는 지정하면 묻지 않는다 |
+| `-DbHost/-DbPort/-DbUser/-DbPassword/-DbName` | DB 접속정보 기본값 — 대화형이면 Enter 로 수락, 비밀번호는 지정하면 묻지 않는다. DB 이름은 영문자·숫자·`_`(63자 이하), 호스트는 호스트 이름·IPv4 또는 `[IPv6]`, 사용자는 제어 문자·큰따옴표 금지 |
+| 환경변수 `SCAFFOLD_DB_PASSWORD` | **비밀번호는 이 경로를 권장한다**(두 스크립트 공통). `-DbPassword`/`--db-password` 는 프로세스 목록·셸 기록에 남아 경고를 내며 호환용으로만 남긴다(둘 다 있으면 인자 우선). 대화형이면 지정하지 않고 화면에 보이지 않는 프롬프트로 넣는다 |
 
 ### 사전 요구사항
 
@@ -255,13 +256,27 @@ python tools\check_projects.py --audit --files --output 점검.md      # 경로�
 |---|---|---|---|
 | Python 하한 | 이상이면 기존 설치본 재사용 | `≥ 3.13` | [`versions.env`](skeleton/scripts/versions.env) |
 | Python 설치 핀 | pyenv 가 설치·활성화 | `3.13.14` | [`.python-version`](skeleton/.python-version) |
-| Python 패키지 | `==` **정확 고정** (재현성 우선) | flask `3.1.3`, werkzeug `3.1.9`, sqlalchemy `2.1.8` 등 20개(전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함) | [`requirements.txt`](skeleton/requirements.txt) |
-| Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증 | `4.3.5` | `versions.env` + [`tailwind-sha256sums.txt`](skeleton/scripts/tailwind-sha256sums.txt) |
+| Python 패키지 | `==` **정확 고정** (재현성 우선) — 사람이 고치는 입력 | flask `3.1.3`, werkzeug `3.1.9`, sqlalchemy `2.1.8` 등 20개(전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함) | [`requirements.txt`](skeleton/requirements.txt) |
+| Python 설치 lock | 전이 의존성까지 정확 버전 + SHA-256 해시, Windows·macOS·Linux 공용. 설치는 언제나 `pip install --require-hashes -r requirements.lock` | uv `0.13.10` 으로 생성, 기준 시각 `2026-11-25T00:00:00Z` | [`requirements.lock`](skeleton/requirements.lock) ← [`scripts/lock.py`](skeleton/scripts/lock.py) · `versions.env` 의 `LOCK_EXCLUDE_NEWER` |
+| CI 도구 | 정확 핀 + 해시 lock(pip 자체 포함) | pip-audit `2.10.1`, uv `0.13.10` | [`requirements-ci.txt`](skeleton/.github/requirements-ci.txt) → `requirements-ci.lock` |
+| GitHub Actions | 전체 커밋 SHA + `# vX.Y.Z` 주석, `persist-credentials: false` | checkout `v5.1.0`, setup-python `v6.3.0` | 두 워크플로 · [`dependabot.yml`](.github/dependabot.yml) |
+| Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증(실행마다) | `4.3.5` | `versions.env` + [`tailwind-sha256sums.txt`](skeleton/scripts/tailwind-sha256sums.txt) |
 | htmx | 벤더링 | `2.0.11` | `versions.env` + `skeleton/app/static/js/htmx.min.js` |
-| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16`) | — |
+| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16` 을 digest 로 고정) | — |
 
 패키지별 전체 목록은 [생성 프로젝트 README 의 기술 스택과 버전](skeleton/README.md#기술-스택과-버전)에 있다.
-임의 `pip install -U` 를 금지하며, 핀 상향은 `stack-versions` 스킬의 검증 절차(임시 스캐폴드로 install·pytest 확인)를 따른다. 공통 계층이 쓰는 패키지는 원본 저장소와 같은 핀을 유지한다.
+임의 `pip install -U`·`pip install --upgrade pip` 를 금지하며, 핀 상향은 `stack-versions` 스킬의 검증 절차(임시 스캐폴드로 install·pytest 확인)를 따른다. 공통 계층이 쓰는 패키지는 원본 저장소와 같은 핀을 유지한다.
+
+**lock 다시 만들기** — `requirements.txt`·`requirements-ci.txt` 를 고치면 같은 변경에서 lock 도 다시 만든다(템플릿 CI `lock-check` 가 다시 만들어 비교한다).
+`LOCK_EXCLUDE_NEWER` 는 재생성 시점보다 24시간 이상 전의 UTC 시각으로 옮긴다(배포 24시간 규칙). 도구 venv 는 저장소 밖(세션 스크래치 등)에 둔다.
+
+```powershell
+py -3.13 -m venv <스크래치>\lock-tools
+<스크래치>\lock-tools\Scripts\python -m pip install --require-hashes -r skeleton\.github\requirements-ci.lock
+cd skeleton; <스크래치>\lock-tools\Scripts\python -B scripts\lock.py          # 확인만: --check
+```
+
+Dependabot([`.github/dependabot.yml`](.github/dependabot.yml), 매주·배포 후 1일 대기)의 pip PR 은 `requirements*.txt` 만 바꾸므로 `lock-check` 가 실패하는 것이 정상이다 — 그 PR 에서 lock 을 다시 만들어 함께 올린다.
 
 ## 템플릿 커스터마이즈
 

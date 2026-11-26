@@ -162,9 +162,23 @@ def hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+# session_id 자릿수 상한 — BIGINT 최댓값(19자리)보다 짧다. 긴 숫자열을 int() 로 바꾸면
+# 파이썬의 정수 변환 자릿수 제한(4300자리)에 걸려 ValueError(500)가 나므로 그 전에 거른다.
+SESSION_ID_MAX_DIGITS = 18
+
+
 def parse_session_id(token: str) -> int | None:
-    """refresh 토큰 앞부분의 session_id 를 파싱한다. 형식 오류면 None (예외를 던지지 않는다)."""
+    """refresh 토큰 앞부분의 session_id 를 파싱한다. 형식 오류면 None (예외를 던지지 않는다).
+
+    ASCII 숫자(0-9)만 받는다 — str.isdigit() 은 "²"·"٣" 같은 유니코드 숫자도 참이라 int() 가 실패한다.
+    """
     session_id_part, sep, secret_part = token.partition(".")
-    if not sep or not secret_part or not session_id_part.isdigit():
+    if (
+        not sep
+        or not secret_part
+        or not session_id_part.isascii()
+        or not session_id_part.isdecimal()
+        or len(session_id_part) > SESSION_ID_MAX_DIGITS
+    ):
         return None
     return int(session_id_part)

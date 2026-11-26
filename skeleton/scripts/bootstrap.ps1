@@ -308,7 +308,7 @@ Write-Host @"
 # scaffold.ps1 이 부를 때는 아래 단계를 scaffold 가 곧바로 수행하므로 생략한다(bootstrap.sh 와 같다).
 if (-not $SkipNextSteps) {
   Write-Host @"
-2) 의존성:        python -m venv .venv; .\.venv\Scripts\python -m pip install -r requirements.txt
+2) 의존성:        python -m venv .venv; .\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock
 3) CSS 빌드:      .\scripts\tailwind.ps1
 4) DB 마이그레이션: .env 의 DATABASE_URL 확인 후  .\.venv\Scripts\python -m alembic upgrade head
 자세한 내용은 README.md 참조.

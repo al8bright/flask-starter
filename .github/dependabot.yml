@@ -1,0 +1,50 @@
+# Dependabot — 이 템플릿 저장소용. 생성 프로젝트용은 skeleton/.github/dependabot.yml(이 저장소에서는 동작하지 않는다).
+#
+# - cooldown 1일: 배포 후 24시간이 지난 버전만 PR 로 올린다(AGENTS.md 「버전 상향」 배포 24시간 규칙).
+# - ⚠️ pip PR 은 requirements.txt(·requirements-ci.txt)만 바꾼다. requirements.lock 은 바뀌지 않아 CI 의 lock-check 가
+#   실패하므로, 같은 PR 에서 skeleton/ 기준 `python scripts/lock.py` 로 lock 을 다시 만들어 올린 뒤 병합한다
+#   (기준 시각 LOCK_EXCLUDE_NEWER 도 함께 옮긴다 — stack-versions 스킬 §5-1).
+# - ⛔ 공통 계층 패키지(common-layer 묶음)는 원본 저장소(fastapi-react-pg-starter)보다 먼저 올리지 않는다.
+#   원본이 같은 버전으로 올린 뒤에만 병합한다.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # / 는 이 저장소의 .github/workflows, /skeleton 은 생성 프로젝트가 받는 skeleton/.github/workflows 다.
+    directories:
+      - /
+      - /skeleton
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    cooldown:
+      default-days: 1
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    # skeleton/requirements.txt(앱 의존성)와 skeleton/.github/requirements-ci.txt(CI 도구 — pip-audit·uv)
+    directories:
+      - /skeleton
+      - /skeleton/.github
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    cooldown:
+      default-days: 1
+    groups:
+      common-layer:
+        patterns:
+          - sqlalchemy
+          - alembic
+          - psycopg2-binary
+          - pydantic
+          - pydantic-settings
+          - PyJWT
+          - bcrypt
+          - nh3
+          - pillow

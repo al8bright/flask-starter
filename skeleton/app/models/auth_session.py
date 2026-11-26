@@ -3,12 +3,12 @@
 - AuthSession: refresh 토큰 1개 = 세션 행 1개. 토큰 평문은 저장하지 않고 SHA-256 hex 만 저장한다.
   access JWT 의 sid 클레임이 이 테이블의 id 를 가리키므로, 행을 폐기(revoked_at)하면
   해당 세션의 access 토큰도 만료를 기다리지 않고 즉시 무효가 된다.
-- LoginThrottle: 계정별(username) 로그인 실패 카운터. 두 모델 모두 인증 보안 상태라는
-  한 관심사이므로 한 파일에 둔다(user.py 가 User+UserRole 을 함께 두는 방식과 동일).
+- LoginThrottle: (username, 접속 IP) 칸별 로그인 실패 카운터 + username 전체 합산 칸(client_ip="*").
+  두 모델 모두 인증 보안 상태라는 한 관심사이므로 한 파일에 둔다(user.py 가 User+UserRole 을 함께 두는 방식과 동일).
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.security import now
@@ -36,13 +36,27 @@ class AuthSession(Base):
     last_used_at: Mapped[datetime] = mapped_column(DateTime, default=now, server_default=func.now())
 
 
+# client_ip 칸 길이 — 정규화한 IPv4(최대 15자)·IPv6 /64 네트워크 표기(최대 43자)·자리표시 키가 들어간다.
+LOGIN_THROTTLE_KEY_LENGTH = 64
+
+
 class LoginThrottle(Base):
+    """로그인 실패 칸. 한 username 에 IP 칸 여러 개와 전체 합산 칸 1개가 있다(user_service 참고).
+
+    잠금을 계정 단위로만 걸면 누구나 아무 IP 에서 실패를 쌓아 관리자를 계속 잠글 수 있다.
+    그래서 (username, IP) 칸이 기본 잠금 단위이고, 전체 합산 칸은 분산 대입 공격의 상한이다.
+    """
+
     __tablename__ = "login_throttles"
+    __table_args__ = (UniqueConstraint("username", "client_ip", name="uq_login_throttles_username_client_ip"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     # FK 가 아니라 입력된 username 문자열이다 — 미존재 계정의 실패도 기록해야
     # 잠금 응답(429) 유무로 계정 존재 여부가 드러나지 않는다(user_service 참고).
-    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    # username 으로만 찾는 조회(잠금 해제·비밀번호 재설정)도 유일 제약의 복합 인덱스(username 이 앞)가 맡는다.
+    username: Mapped[str] = mapped_column(String(50))
+    # 정규화한 접속 IP 키(user_service.client_ip_key). "*" 는 username 전체 합산 칸이다.
+    client_ip: Mapped[str] = mapped_column(String(LOGIN_THROTTLE_KEY_LENGTH))
     failed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # NULL 이 아니고 미래 시각이면 잠금 중.
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

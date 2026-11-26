@@ -4,11 +4,19 @@ name: Template CI
 # skeleton/.github/workflows/ci.yml 은 *생성된 프로젝트* 용이라 템플릿 리포에서는 돌지 않는다.
 # 공통 계층(fastapi-react-pg-starter)과의 동일성은 원본이 비공개 저장소라 여기서 검사하지 않는다
 # — 로컬에서 tools/check_common_layer.py 로 확인한다(AGENTS.md 「공통 계층」).
+#
+# 공급망 고정: 액션은 전체 커밋 SHA(주석은 태그), 서비스 이미지는 digest(주석은 태그)로 고정한다.
+# 체크아웃은 persist-credentials: false 로 GITHUB_TOKEN 을 작업 트리 git 설정에 남기지 않는다.
+# 갱신은 Dependabot(.github/dependabot.yml)이 PR 로 올리고, 이미지 digest 는 손으로 옮긴다(AGENTS.md 「버전 상향」).
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  # 매주 월요일 09:00 KST — 코드 변경 없이 공개되는 CVE(dependency-audit)와 러너 이미지 변화를 잡는다.
+  # ⚠️ 공개 저장소는 60일 동안 활동이 없으면 GitHub 이 schedule 을 끈다(Actions 탭에서 다시 켠다).
+  schedule:
+    - cron: '0 0 * * 1'
 
 # 최소 권한 — 미선언이면 리포/조직 설정에 따라 GITHUB_TOKEN 이 read-write 로 발급된다.
 permissions:
@@ -26,7 +34,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: Check .ps1 syntax with Windows PowerShell 5.1
         shell: powershell # pwsh 로 바꾸면 PS7 전용 문법을 놓친다
         # ⛔ 검사 로직을 여기 인라인으로 옮기지 않는다(BOM 없는 임시 파일 → 5.1 이 한글을 ANSI 로 읽는다).
@@ -37,7 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: bash -n (모든 .sh)
         run: |
           failed=0
@@ -73,7 +85,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: htmx · Tailwind 버전이 versions.env 와 같은지 확인
         working-directory: skeleton
         run: |
@@ -100,8 +114,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: skeleton/.python-version
 
@@ -135,9 +151,10 @@ jobs:
           fi
 
       - name: 생성물 검증 (pip check + ruff + pytest)
+        # 생성 안내와 같은 경로 — 전이 의존성까지 해시로 고정한 requirements.lock 만 설치한다.
         working-directory: ${{ runner.temp }}/CiDemo
         run: |
-          pip install -r requirements.txt
+          python -m pip install --require-hashes -r requirements.lock
           pip check
           ruff check .
           pytest -q -W error::DeprecationWarning
@@ -156,8 +173,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: skeleton/.python-version
 
@@ -220,7 +239,7 @@ jobs:
         shell: bash
         working-directory: ${{ runner.temp }}/ps
         run: |
-          python -m pip install -r requirements.txt
+          python -m pip install --require-hashes -r requirements.lock
           python -m pip check
           python -m ruff check .
           python -m pytest -q -W error::DeprecationWarning
@@ -235,8 +254,8 @@ jobs:
 
   # ── 6. PostgreSQL 마이그레이션 왕복 (생성물 기준) ────────────────────────
   # 스캐폴드의 DB 단계(psql CREATE DATABASE + alembic)는 실패해도 경고만 내고 계속하므로 게이트가 못 된다.
-  # 그래서 --skip-db 로 생성하되 --db-* 로 서비스 컨테이너 접속 정보를 넘겨 .env 의 DATABASE_URL 을
-  # 만들게 하고, alembic 은 이 잡이 직접 실행해 실패를 그대로 드러낸다(.env 생성 경로도 함께 검증된다).
+  # 그래서 --skip-db 로 생성하되 --db-* 와 SCAFFOLD_DB_PASSWORD 로 서비스 컨테이너 접속 정보를 넘겨 .env 의
+  # DATABASE_URL 을 만들게 하고, alembic 은 이 잡이 직접 실행해 실패를 그대로 드러낸다(.env 생성 경로도 함께 검증된다).
   migrations-postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -244,7 +263,8 @@ jobs:
       TZ: Asia/Seoul
     services:
       postgres:
-        image: postgres:16
+        # postgres:16 (16.16, 2026-11-24 빌드) — 태그는 같은 이름으로 새 이미지를 가리킬 수 있어 digest 로 고정한다.
+        image: postgres@sha256:07abc3f43c9395b0bdbbab36bc25ddb0e8d83cd4fcafb5fb7d6abe14ff156dd8
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -258,20 +278,25 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: skeleton/.python-version
 
       - name: Run scaffold.sh (DB 접속 정보만 주입)
+        # 비밀번호는 권장 경로(환경변수)로 넘긴다 — --db-password 는 프로세스 목록에 남아 경고를 낸다.
+        env:
+          SCAFFOLD_DB_PASSWORD: postgres
         run: >-
           bash ./scaffold.sh --name CiDemo --target "$RUNNER_TEMP/CiDemo" --skip-db --skip-install
-          --db-host localhost --db-port 5432 --db-user postgres --db-password postgres --db-name cidemo < /dev/null
+          --db-host localhost --db-port 5432 --db-user postgres --db-name cidemo < /dev/null
 
       - name: 의존성 설치
         working-directory: ${{ runner.temp }}/CiDemo
         run: |
-          pip install -r requirements.txt
+          python -m pip install --require-hashes -r requirements.lock
           pip check
 
       - name: Alembic 왕복 (upgrade → check → downgrade base → upgrade → check)
@@ -297,23 +322,48 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: skeleton/.python-version
-      - name: pip-audit (requirements.txt)
-        run: |
-          pip install pip-audit==2.10.1
-          pip-audit -r skeleton/requirements.txt
+      - name: CI 도구 설치 (requirements-ci.lock — pip-audit·uv 를 해시로 고정)
+        run: python -m pip install --require-hashes -r skeleton/.github/requirements-ci.lock
+      - name: pip-audit (requirements.lock — 전이 의존성 포함)
+        # --disable-pip: lock 이 이미 전체 고정이라 격리 venv 에 다시 설치하지 않고 적힌 버전을 그대로 조회한다.
+        run: pip-audit -r skeleton/requirements.lock --require-hashes --disable-pip
 
-  # ── 8. 점검 도구(tools/) 단위 테스트 ─────────────────────────────────────
+  # ── 8. lock 정합 (requirements.txt → requirements.lock) ─────────────────
+  # 사람이 고치는 requirements.txt(·.github/requirements-ci.txt)와 해시 lock 이 어긋나면 실패한다.
+  # 핀한 uv 로 같은 기준 시각(versions.env 의 LOCK_EXCLUDE_NEWER)에서 다시 만들어 비교한다.
+  # ⚠️ Dependabot 의 pip PR 은 requirements.txt 만 바꾸므로 이 잡이 실패한다 — lock 을 다시 만들어 같은 PR 에 올린다.
+  lock-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: skeleton/.python-version
+      - name: CI 도구 설치 (requirements-ci.lock)
+        run: python -m pip install --require-hashes -r skeleton/.github/requirements-ci.lock
+      - name: lock 재생성 비교
+        working-directory: skeleton
+        run: python -B scripts/lock.py --check
+
+  # ── 9. 점검 도구(tools/) 단위 테스트 ─────────────────────────────────────
   # 표준 라이브러리 unittest 만 쓰므로 설치가 없다. -B 로 __pycache__ 를 남기지 않는다.
   tools-test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: skeleton/.python-version
       - name: unittest

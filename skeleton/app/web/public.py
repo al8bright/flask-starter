@@ -39,9 +39,26 @@ def notices() -> Response:
     )
 
 
+def _counts_as_view() -> bool:
+    """사람이 문서를 여는 요청인지 — 조회수 집계 대상.
+
+    HEAD·미리 가져오기(prefetch)·다른 페이지의 <img>·<iframe> 같은 하위 리소스 요청은 세지 않는다.
+    Sec-Fetch-Dest 를 보내지 않는 클라이언트(오래된 브라우저·curl)는 문서 요청으로 본다.
+    """
+    if request.method != "GET":
+        return False
+    purpose = (request.headers.get("Sec-Purpose") or request.headers.get("Purpose") or "").lower()
+    if "prefetch" in purpose:
+        return False
+    return request.headers.get("Sec-Fetch-Dest", "document") in ("document", "iframe")
+
+
 @bp.get("/notices/<int:notice_id>")
 def notice_detail(notice_id: int) -> str:
-    notice = notice_service.view_published(get_db(), notice_id)
+    db = get_db()
+    if _counts_as_view():
+        notice_service.increment_view(db, notice_id)
+    notice = notice_service.get_published(db, notice_id)
     return render_template("public/notice_detail.html", notice=notice)
 
 

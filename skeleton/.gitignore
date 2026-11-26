@@ -2,6 +2,13 @@
 .env
 .env.*
 !.env.example
+# 인증서·개인키(certbot·배포 작업 중 실수로 들어오는 것을 막는다)
+*.pem
+*.key
+*.p12
+*.pfx
+# 에이전트 개인 로컬 설정 — 허용 명령·환경변수가 들어갈 수 있다
+.claude/settings.local.json
 
 # === Python ===
 __pycache__/

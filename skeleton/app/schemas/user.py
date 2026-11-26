@@ -1,6 +1,8 @@
 """사용자/인증 스키마 (ARCHITECTURE.md §8) — Pydantic v2."""
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.sanitize import has_unsafe_text_chars
+
 # 상한의 SSOT 는 해시 생성 지점(core.security)이다. 여기서는 같은 불변식을 HTTP 입력에 미리 적용해
 # 절단된 비밀번호가 동일 판정되는 착시를 막고 422 로 거부한다.
 from app.core.security import BCRYPT_MAX_PASSWORD_BYTES
@@ -9,6 +11,15 @@ from app.core.security import BCRYPT_MAX_PASSWORD_BYTES
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=50)
     password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def username_without_control_chars(cls, v: str) -> str:
+        # 아이디는 감사 로그·관리자 화면에 그대로 실린다 — 개행·양방향 재정렬 문자 등으로 로그 줄을 위조하거나
+        # 다른 아이디처럼 보이게 하는 입력을 422 로 거부한다(로그 기록 자체도 %r 로 이스케이프한다).
+        if has_unsafe_text_chars(v):
+            raise ValueError("아이디에 제어 문자나 서식 문자를 쓸 수 없습니다.")
+        return v
 
     @field_validator("password")
     @classmethod

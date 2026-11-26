@@ -33,21 +33,23 @@
   <h2 id="login-failures" class="pb-2 text-lg font-bold">로그인 실패 기록</h2>
   <div class="table-wrap">
     <table class="table">
-      <thead><tr><th scope="col">아이디</th><th class="text-center" scope="col">연속 실패</th><th scope="col">잠금 해제 시각</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
+      <thead><tr><th scope="col">아이디</th><th scope="col">접속 IP</th><th class="text-center" scope="col">연속 실패</th><th scope="col">잠금 해제 시각</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
       <tbody>
         {% for t in throttles %}
           <tr>
             <td><span class="font-semibold">{{ t.username }}</span>{% if t.is_locked %} <span class="seal ml-1">잠김</span>{% endif %}</td>
+            <td class="tabular-nums text-muted">{{ t.client_ip or '전체 합산' }}</td>
             <td class="text-center tabular-nums">{{ t.failed_count }}</td>
             <td class="tabular-nums text-muted">{{ t.locked_until.strftime('%Y.%m.%d %H:%M') if t.locked_until else '-' }}</td>
             <td class="text-right">
-              <form method="post" action="{{ url_for('admin.clear_login_throttle', username=t.username) }}">
-                {{ csrf_field() }}<button class="link text-sm">기록 지우기</button>
+              <form method="post" action="{{ url_for('admin.clear_login_throttle') }}">
+                {{ csrf_field() }}<input type="hidden" name="username" value="{{ t.username }}">
+                <button class="link text-sm" title="이 아이디의 모든 IP 기록을 지운다">기록 지우기</button>
               </form>
             </td>
           </tr>
         {% else %}
-          <tr><td colspan="4" class="py-10 text-center text-muted">로그인 실패 기록이 없습니다.</td></tr>
+          <tr><td colspan="5" class="py-10 text-center text-muted">로그인 실패 기록이 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>

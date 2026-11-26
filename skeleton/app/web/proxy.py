@@ -31,12 +31,19 @@ class ProxySettings(BaseSettings):
     trusted_proxy_hops: int = Field(default=0, ge=0, le=MAX_PROXY_HOPS)
 
 
-def apply_proxy_fix(app: Flask, *, cookie_secure: bool) -> int:
+def apply_proxy_fix(app: Flask, *, cookie_secure: bool, app_env: str) -> int:
     """설정한 단계 수만큼 X-Forwarded-For·Proto·Host 를 믿는다. 적용한 단계 수를 돌려준다.
 
     값이 범위를 벗어나면 pydantic ValidationError 로 기동을 막는다.
+    프록시를 믿도록 설정했는데 APP_ENV 가 development(기본값)이면 기동을 막는다 — 운영 .env 에서 APP_ENV 를
+    빠뜨리면 기본 SECRET_KEY 거부·Secure 쿠키·HSTS 같은 운영 검사가 모두 경고로 바뀌기 때문이다(app/main.py).
     """
     hops = ProxySettings().trusted_proxy_hops
+    if hops and app_env == "development":
+        raise RuntimeError(
+            "TRUSTED_PROXY_HOPS 가 설정됐는데 APP_ENV=development 입니다. 운영 프록시 뒤라면 .env 에 "
+            "APP_ENV=production 을 두세요. 개발 중 프록시를 쓰지 않는다면 TRUSTED_PROXY_HOPS=0 으로 둡니다."
+        )
     if hops:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)  # type: ignore[method-assign]
     elif cookie_secure:

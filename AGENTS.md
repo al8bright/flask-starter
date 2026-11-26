@@ -54,7 +54,7 @@
 ### 공통 계층
 
 - `fastapi-react-pg-starter/skeleton/backend/` → 이 저장소 `skeleton/` 으로 **단방향 추적**한다. ⛔ 이 저장소에서 공통 파일을 고치지 않는다 — 버그를 찾으면 원본 저장소에서 고치도록 보고하고, 원본이 바뀌면 파일을 다시 복사한다.
-- 대상: `app/__init__.py`·`app/config.py`·`app/cli.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/`·`alembic.ini`, 테스트 `media_factory.py`·`test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`. 프레임워크(FastAPI·Flask)에 묶인 코드는 공통 계층에 없다.
+- 대상: `app/__init__.py`·`app/config.py`·`app/cli.py`·`app/core/`·`app/db/`·`app/models/`·`app/schemas/`·`app/services/`·`alembic/`·`alembic.ini`, 테스트 `media_factory.py`·`test_cli.py`·`test_config.py`·`test_login_throttle.py`·`test_sanitize.py`·`test_storage.py`. 프레임워크(FastAPI·Flask)에 묶인 코드는 공통 계층에 없다.
 - 원본에서 다시 복사하면 이 저장소 웹 계층(`app/web/`·`app/dependencies.py`·`app/main.py`)과 테스트가 새 서비스 시그니처에 맞는지 확인한다. 설정 키가 바뀌었으면 `.env.example` 과 두 스캐폴드의 `.env` 생성 블록도 고친다.
 - 동일성 확인(저장소 루트) — 원본 기본 위치는 이 저장소 옆 `../fastapi-react-pg-starter` 다. 종료 코드 0 같음, 1 차이, 2 원본 없음.
   대상 목록은 `tools/check_common_layer.py` 의 `COMMON_PATHS` 에 있으며, 위 「대상」을 바꾸면 함께 고친다.
@@ -74,7 +74,7 @@ git status --short   # 출력이 없어야 한다(템플릿 비오염)
 
 # 2) 생성물(<임시 경로>) — .python-version 의 Python 3.13 으로 venv 생성
 py -3.13 -m venv .venv   # py 런처가 없으면 pyenv 의 python.exe 를 직접 지정
-.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock
 .\.venv\Scripts\python -m pip check
 .\.venv\Scripts\python -m ruff check .
 .\.venv\Scripts\python -m pytest -q -W error::DeprecationWarning
@@ -98,8 +98,13 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
 
 - `skeleton/.claude/skills/stack-versions/SKILL.md` §5 절차를 따른다.
 - **배포 24시간 규칙**: 배포 후 24시간이 지난 버전만 선정한다. pip 은 `pip install --uploaded-prior-to P1D`(pip 26.3 이상, 정수 일 단위)로 강제할 수 있다.
+  lock 은 `skeleton/scripts/versions.env` 의 `LOCK_EXCLUDE_NEWER`(UTC)로 같은 기준을 건다 — 재생성 시점보다 24시간 이상 전으로 옮긴다.
 - 동작을 좌우하는 전이 의존성(현재 `werkzeug`·`jinja2`·`markupsafe`·`itsdangerous`)은 `requirements.txt` 에 직접 핀한다.
-- 공통 계층이 쓰는 패키지(sqlalchemy·alembic·psycopg2-binary·pydantic·pydantic-settings·PyJWT·bcrypt·nh3·pillow)는 원본 저장소와 같은 핀을 유지한다. 원본보다 먼저 올리지 않는다.
+- **lock**: 사람이 고치는 입력은 `skeleton/requirements.txt`·`skeleton/.github/requirements-ci.txt` 이고, 해시 lock(`requirements.lock`·`.github/requirements-ci.lock`)은 `skeleton/` 에서 `python -B scripts/lock.py` 로 다시 만든다(⛔ 손으로 고치지 않는다).
+  uv 는 저장소 밖 스크래치 venv 에 `requirements-ci.lock` 으로 설치한다(`lock.py` 는 uv 버전이 핀과 다르면 멈춘다). 입력을 고치면 같은 커밋에서 lock 도 바꾼다 — 템플릿 CI `lock-check` 가 다시 만들어 비교한다.
+- 설치는 어디서나 `pip install --require-hashes -r requirements.lock` 이다. ⛔ `pip install --upgrade pip` 같은 미고정 설치를 스크립트·CI 에 들이지 않는다.
+- **Dependabot**(`.github/dependabot.yml`, 매주·cooldown 1일): pip PR 은 `requirements*.txt` 만 바꿔 `lock-check` 가 실패한다 — 그 PR 에서 lock 을 다시 만들어 함께 올린 뒤 검증 절차를 거친다. 액션 PR 은 SHA 와 `# vX.Y.Z` 주석을 함께 바꾼다. CI 의 `postgres` 이미지 digest 는 대상이 아니므로 손으로 옮긴다(`stack-versions` §5-1).
+- 공통 계층이 쓰는 패키지(sqlalchemy·alembic·psycopg2-binary·pydantic·pydantic-settings·PyJWT·bcrypt·nh3·pillow)는 원본 저장소와 같은 핀을 유지한다. 원본보다 먼저 올리지 않는다 — Dependabot 의 `common-layer` 묶음 PR 도 원본이 같은 버전으로 올린 뒤에만 병합한다.
 - 검토 결과는 `docs/reviews/YYYY-MM-DD-dependency-upgrade.md` 로 남긴다.
 
 ## 스크립트 작성 규칙
@@ -130,6 +135,13 @@ macOS / Linux: `./scaffold.sh --name tmp --target <임시 경로> --skip-db --sk
   예) `[Behavioral] fix: ...`, `[Structural] docs: ...`. 의존성 상향은 런타임 동작이 바뀌므로 `[Behavioral] chore:` 로 한다.
 - 한 커밋에는 Structural·Behavioral 중 하나만 담는다(Tidy First). 버전 상향에 딸린 문서 갱신은 같은 커밋에 둘 수 있다.
 - `main` 에 직접 커밋·push 하는 것이 기본이다. 커밋 전에 변경 범위에 해당하는 검증을 통과시킨다. **커밋·push 는 사용자가 요청할 때만** 한다.
+- 커밋 작성자 이메일은 GitHub noreply 주소를 쓴다(저장소 로컬 `user.email`). 공개 이력에 실제 주소·연락처·실명을 남기지 않는다.
+
+### 보안 수정
+
+- 공개 순서는 [`SECURITY.md`](SECURITY.md) 「보안 수정 공개 절차」를 따른다 — 관리자가 운영하는 생성 프로젝트에 먼저 반영한 뒤 이 저장소에 push 한다. 사용자가 push 를 요청했는데 운영 프로젝트 반영 여부가 확인되지 않으면 push 전에 묻는다.
+- 커밋 메시지·CHANGELOG 보안 항목에는 영향 범위와 조치만 쓴다. 재현 절차·공격 입력값·우회 방법은 쓰지 않는다(검토 기록 `docs/reviews/` 도 같다).
+- 이력에 비밀값·개인정보가 들어간 것을 발견하면 파일 삭제 커밋으로 끝내지 않는다. 사용자에게 보고하고 이력 재작성(`git filter-repo`)·강제 push·GitHub 캐시 삭제 요청 여부를 정한다. `main` 은 강제 push·삭제 차단 규칙(ruleset)이 켜져 있어 재작성 때만 잠시 끈다.
 
 ## 템플릿 고유 사항
 

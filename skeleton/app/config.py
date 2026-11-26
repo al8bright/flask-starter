@@ -47,7 +47,8 @@ class Settings(BaseSettings):
     # bcrypt 비용 — 운영 하한은 12 다(APP_ENV=production 에서 미만이면 기동 거부). 테스트만 낮춘다.
     bcrypt_rounds: int = Field(default=12, ge=4, le=16)
 
-    # 로그인 시도 제한 — 계정별 연속 실패가 max 이상이면 lockout 분 동안 429 로 거부한다.
+    # 로그인 시도 제한 — (아이디, 접속 IP)별 실패가 max 이상이면 lockout 분 동안 429 로 거부한다.
+    # 아이디 전체(모든 IP 합산) 상한은 max × user_service.GLOBAL_FAILURE_MULTIPLIER 다.
     login_max_failures: int = 5
     login_lockout_minutes: int = 15
 

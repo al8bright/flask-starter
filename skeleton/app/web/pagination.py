@@ -9,6 +9,8 @@ from app.schemas.common import Page
 
 # 현재 페이지 앞뒤로 보여 줄 번호 개수.
 PAGE_WINDOW = 2
+# 쿼리 문자열 정수의 최대 자릿수 — OFFSET 이 DB 정수 범위를 넘거나 int() 가 큰 수에서 실패하지 않게 한다.
+MAX_INT_ARG_DIGITS = 9
 
 
 @dataclass(frozen=True)
@@ -26,10 +28,21 @@ class PageLinks:
     total_pages: int
 
 
+def int_arg(name: str) -> int | None:
+    """쿼리 문자열의 양의 정수. ASCII 숫자가 아니거나 너무 길거나 1 미만이면 None.
+
+    str.isdigit() 는 "²" 같은 문자도 참이라 int() 가 실패한다 — ASCII 십진수만 받는다.
+    """
+    raw = request.args.get(name, "")
+    if not (raw.isascii() and raw.isdecimal()) or len(raw) > MAX_INT_ARG_DIGITS:
+        return None
+    value = int(raw)
+    return value if value >= 1 else None
+
+
 def page_arg(name: str = "page") -> int:
-    """?page= 값. 숫자가 아니거나 1 미만이면 1."""
-    raw = request.args.get(name, "1")
-    return max(1, int(raw)) if raw.isdigit() else 1
+    """?page= 값. 정수가 아니거나 범위를 벗어나면 1."""
+    return int_arg(name) or 1
 
 
 def page_links(result: Page, endpoint: str, **params) -> PageLinks:

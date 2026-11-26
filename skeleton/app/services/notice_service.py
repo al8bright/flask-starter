@@ -109,22 +109,43 @@ def list_published(db: Session, *, page: int, size: int, q: str | None) -> Page[
 
 
 def _get_published(db: Session, notice_id: int) -> Notice:
-    notice = db.get(Notice, notice_id, options=[selectinload(Notice.attachments)])
+    # populate_existing — 같은 세션에서 increment_view 뒤에 불러도 갱신된 조회수를 읽는다(expire_on_commit=False).
+    notice = db.get(Notice, notice_id, options=[selectinload(Notice.attachments)], populate_existing=True)
     if notice is None or not notice.is_published:
         raise _not_found()
     return notice
 
 
-def view_published(db: Session, notice_id: int) -> NoticeDetail:
-    """게시된 공지 상세 — 조회수를 원자적으로 1 올린다(updated_at 은 바꾸지 않는다)."""
-    notice = _get_published(db, notice_id)
-    db.execute(
+def get_published(db: Session, notice_id: int) -> NoticeDetail:
+    """게시된 공지 상세 — 조회수를 올리지 않는다.
+
+    HEAD·미리 가져오기(prefetch)처럼 사람이 읽지 않는 요청은 이것만 쓴다. 문서를 실제로 보여 줄 때는
+    increment_view 를 먼저 부른 뒤 이것을 부른다(요청 종류 판단은 웹 계층 몫이다).
+    """
+    return _detail(_get_published(db, notice_id))
+
+
+def increment_view(db: Session, notice_id: int) -> None:
+    """게시된 공지의 조회수를 원자적으로 1 올린다(updated_at 은 바꾸지 않는다). 없거나 초안이면 not_found."""
+    result = db.execute(
         update(Notice)
-        .where(Notice.id == notice_id)
+        .where(Notice.id == notice_id, Notice.is_published.is_(True))
         .values(view_count=Notice.view_count + 1, updated_at=Notice.updated_at)
+        .execution_options(synchronize_session=False)
     )
+    if result.rowcount == 0:
+        db.rollback()
+        raise _not_found()
     db.commit()
-    db.refresh(notice)
+
+
+def view_published(db: Session, notice_id: int) -> NoticeDetail:
+    """게시된 공지 상세 + 조회수 1 증가 (기존 호환 — increment_view 뒤 get_published 와 같다)."""
+    increment_view(db, notice_id)
+    return get_published(db, notice_id)
+
+
+def _detail(notice: Notice) -> NoticeDetail:
     return NoticeDetail(
         id=notice.id,
         title=notice.title,

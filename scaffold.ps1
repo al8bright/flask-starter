@@ -14,7 +14,7 @@
              템플릿 저장소 자신·그 하위·그 상위 폴더는 항상 거부한다.
 
   종료 코드: 0 = 모든 단계 완료
-             1 = 중단(입력 오류, 대상 폴더 거부, 런타임 미충족, 복사·치환 실패)
+             1 = 중단(입력 오류, 대상 폴더 거부, 런타임 미충족, 복사·치환 실패, .env 생성·권한 제한 실패)
              2 = 골격은 생성됐지만 일부 단계(pip·DB·alembic·CSS 빌드 등)가 미완료 — 마지막 요약 참고
 
 .PARAMETER Name
@@ -32,12 +32,23 @@
 .PARAMETER DbHost
   DB 접속 정보 기본값(-DbHost/-DbPort/-DbUser/-DbPassword/-DbName 공통).
   대화형이면 Enter 로 수락하고, 비밀번호는 지정하면 묻지 않는다.
+  값 규칙: DB 이름은 영문자·숫자·'_'(63자 이하), 호스트는 호스트 이름·IPv4(영문자·숫자·'.'·'-'·'_') 또는 [IPv6],
+  사용자는 제어 문자·큰따옴표 금지, 포트는 1~65535. 어기면 중단한다(scaffold.sh 와 같다).
+
+.PARAMETER DbPassword
+  DB 비밀번호. ⚠️ 명령줄 인자는 프로세스 목록·셸 기록에 남으므로 경고를 낸다(호환용으로만 남긴다).
+  비밀번호는 환경변수 SCAFFOLD_DB_PASSWORD 로 넘기는 것을 권장한다 — 둘 다 있으면 인자가 우선한다.
 
 .EXAMPLE
   .\scaffold.ps1 -Name project_test -Target P:\flask\project_test
 
 .EXAMPLE
   .\scaffold.ps1 -Name Demo -Target P:\tmp\Demo -SkipDb -SkipInstall
+
+.EXAMPLE
+  .\scaffold.ps1 -Name Demo -DbUser app
+  # 비대화형(CI 등)이면 비밀번호를 CI 비밀값·비밀 저장소에서 환경변수 SCAFFOLD_DB_PASSWORD 로 주입한다.
+  # 대화형이면 지정하지 않고 화면에 보이지 않는 입력 프롬프트로 넣는다.
 #>
 [CmdletBinding()]
 param(
@@ -106,6 +117,59 @@ function Test-PathWithin([string]$child, [string]$parent) {
   return $c.StartsWith($p + '\', [StringComparison]::OrdinalIgnoreCase)
 }
 
+# 링크(정션·심볼릭 링크)를 푼 실제 경로 (scaffold.sh 의 _canon_path·pwd -P 대응).
+# ⛔ GetFullPath 는 링크를 풀지 않는다 — 템플릿을 가리키는 정션을 대상으로 주면 "템플릿 안인가" 검사를 통과해 버린다.
+#    존재하는 가장 가까운 상위 폴더를 GetFinalPathNameByHandle 로 풀고, 아직 없는 나머지 경로를 붙인다.
+#    PS 5.1(.NET Framework)에는 링크를 푸는 API 가 없어 kernel32 를 직접 부른다. 풀지 못하면 검사를 약하게 하지 않고 중단한다.
+$_nativeSrc = @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+public static class ScaffoldRealPath {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr sec, uint disposition, uint flags, IntPtr template);
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder buffer, uint size, uint flags);
+  public static string Get(string path) {
+    // 접근 권한 0 + FILE_FLAG_BACKUP_SEMANTICS(0x02000000) = 폴더 핸들, OPEN_EXISTING(3), 공유 읽기·쓰기·삭제(7)
+    using (SafeFileHandle h = CreateFileW(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero)) {
+      if (h.IsInvalid) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
+      StringBuilder sb = new StringBuilder(1024);
+      uint n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0);
+      if (n >= sb.Capacity) { sb = new StringBuilder((int)n + 1); n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0); }
+      if (n == 0) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
+      string s = sb.ToString();
+      if (s.StartsWith(@"\\?\UNC\")) { return @"\\" + s.Substring(8); }
+      if (s.StartsWith(@"\\?\")) { return s.Substring(4); }
+      return s;
+    }
+  }
+}
+'@
+function Resolve-RealPath([string]$path) {
+  if (-not ('ScaffoldRealPath' -as [type])) {
+    try { Add-Type -TypeDefinition $_nativeSrc -ErrorAction Stop }
+    catch { Stop-Scaffold "경로의 링크를 해석할 수 없습니다(Add-Type 실패) — 중단합니다: $($_.Exception.Message)" }
+  }
+  $p = [System.IO.Path]::GetFullPath($path)
+  $rest = New-Object System.Collections.Generic.List[string]
+  while (-not [System.IO.Directory]::Exists($p)) {
+    $trim = $p.TrimEnd('\', '/')
+    $parent = [System.IO.Path]::GetDirectoryName($trim)
+    if (-not $parent) { Stop-Scaffold "경로를 해석할 수 없습니다(존재하는 상위 폴더 없음): $path" }
+    $rest.Insert(0, [System.IO.Path]::GetFileName($trim))
+    $p = $parent
+  }
+  try { $real = [ScaffoldRealPath]::Get($p) }
+  catch { Stop-Scaffold "경로의 링크를 해석할 수 없습니다 — 중단합니다: $p ($($_.Exception.Message))" }
+  foreach ($r in $rest) { $real = [System.IO.Path]::Combine($real, $r) }
+  $real = $real.TrimEnd('\', '/')
+  if ($real -match '^[A-Za-z]:$') { $real += '\' }
+  return $real
+}
+
 # 파일 접근 권한을 현재 사용자 단독으로 제한한다 (scaffold.sh 의 chmod 600 대응).
 # ⛔ 경로에 [ ] 가 있어도 동작하도록 -LiteralPath 를 쓴다(-Path 는 와일드카드로 해석해 조용히 실패한다).
 #    DACL 만 담은 새 FileSecurity 를 .NET 으로 쓴다 — Set-Acl 은 소유자·감사(SACL) 구역까지 쓰려다
@@ -160,6 +224,13 @@ function Enable-Psql {
 
 # ---------- 1. 이름·생성 위치 (런타임 설치보다 먼저 검증해 잘못된 입력이면 아무것도 하지 않고 끝낸다) ----------
 Write-Step "신규 프로젝트 스캐폴드"
+# DB 비밀번호 — ⚠️ 명령줄 인자는 프로세스 목록·셸 기록에 남는다. 환경변수 SCAFFOLD_DB_PASSWORD 를 권장하고,
+# 인자는 호환용으로만 받는다(둘 다 있으면 인자 우선, 빈 값은 지정하지 않은 것으로 본다 — scaffold.sh 와 같다).
+if ($PSBoundParameters.ContainsKey('DbPassword') -and $DbPassword) {
+  Write-Warn2 "-DbPassword 인자는 프로세스 목록·셸 기록에 남습니다 — 환경변수 SCAFFOLD_DB_PASSWORD 를 쓰세요."
+} elseif ($env:SCAFFOLD_DB_PASSWORD) {
+  $DbPassword = $env:SCAFFOLD_DB_PASSWORD
+}
 if (-not $Name)   { $Name = Read-HostSafe "프로젝트 이름 (예: project_test)" }
 if (-not $Name)   { Stop-Scaffold "프로젝트 이름이 필요합니다." }
 # ⛔ 이름은 Python 문자열 리터럴(app\main.py)·HTML 제목과 기본 생성 위치(부모\<이름>)에 그대로 들어간다.
@@ -191,15 +262,17 @@ if (-not $Target) {
 if (-not [System.IO.Path]::IsPathRooted($Target)) {
   $Target = Join-Path (Get-Location).Path $Target
 }
-$Target = [System.IO.Path]::GetFullPath($Target).TrimEnd('\', '/')
-if ($Target -match '^[A-Za-z]:$') { $Target += '\' }
+# 링크를 푼 실제 경로로 바꾼다 — 이후 복사·치환·안내가 모두 이 경로를 쓴다(scaffold.sh 의 물리 경로와 같다).
+$Target = Resolve-RealPath $Target
+$_TemplateReal = Resolve-RealPath $TemplateDir
 
 # ⛔ 대상이 템플릿 저장소 자신·그 하위면 골격·문서가 덮이거나 토큰이 치환돼 템플릿이 망가진다.
 #    대상이 템플릿의 상위면 토큰 치환이 템플릿 저장소까지 훑는다. 어느 경우든 무조건 중단한다.
-if (Test-PathWithin $Target $TemplateDir) {
+#    두 쪽 모두 링크를 푼 실제 경로로 비교한다(정션·심볼릭 링크로 우회하지 못하게).
+if (Test-PathWithin $Target $_TemplateReal) {
   Stop-Scaffold "생성 위치가 템플릿 저장소 안입니다 — 템플릿 밖의 경로를 지정하세요: $Target"
 }
-if (Test-PathWithin $TemplateDir $Target) {
+if (Test-PathWithin $_TemplateReal $Target) {
   Stop-Scaffold "생성 위치가 템플릿 저장소를 포함합니다 — 템플릿 밖의 별도 폴더를 지정하세요: $Target"
 }
 if (Test-Path -LiteralPath $Target -PathType Leaf) {
@@ -343,6 +416,25 @@ if ($_needBootstrap) {
 }
 
 # ---------- 3. DB 접속 정보 ----------
+# DB 접속 값 검사 — 값은 psql 인자·SQL 식별자·.env 의 DATABASE_URL 에 들어간다. 규칙은 scaffold.sh 의 _check_db_values 와 같다.
+#  - 이름: 영문자·숫자·'_' 1~63자(PostgreSQL 식별자 한도 — 넘으면 서버가 조용히 잘라 URL 과 어긋난다)
+#  - 호스트: URL 에 인코딩 없이 들어가므로 허용 목록 — 호스트 이름·IPv4(영문자·숫자·'.'·'-'·'_') 또는 [IPv6]
+#  - 사용자: 제어 문자·큰따옴표 금지(URL 에는 인코딩해 넣는다), 포트: 1~65535
+#  - 비밀번호: URL 에는 인코딩해 넣으므로(%0A 등) 제한하지 않는다. ⛔ 그래서 .env 에 줄바꿈이 들어갈 수 없다.
+function Assert-DbValues {
+  if ($DbName -cnotmatch '^[A-Za-z0-9_]{1,63}\z') {
+    Stop-Scaffold "DB 이름은 영문자·숫자·'_' 1~63자만 쓸 수 있습니다: $DbName"
+  }
+  if ($DbHost -cnotmatch '^(?:[A-Za-z0-9._-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])\z') {
+    Stop-Scaffold "DB 호스트는 호스트 이름·IPv4(영문자·숫자·'.'·'-'·'_') 또는 [IPv6] 만 쓸 수 있습니다: $DbHost"
+  }
+  if (-not $DbUser -or $DbUser.Length -gt 63 -or $DbUser -match '[\p{Cc}"]') {
+    Stop-Scaffold "DB 사용자는 1~63자이고 제어 문자·큰따옴표(`")를 쓸 수 없습니다."
+  }
+  if ($DbPort -lt 1 -or $DbPort -gt 65535) {
+    Stop-Scaffold "DB 포트는 1~65535 여야 합니다: $DbPort"
+  }
+}
 if (-not $SkipDb) {
   Write-Step "PostgreSQL 접속 정보 (psql 로 DB 생성)"
   $i = Read-HostSafe "DB host [$DbHost]"; if ($i) { $DbHost = $i }
@@ -364,6 +456,8 @@ if (-not $SkipDb) {
   }
   $i = Read-HostSafe "DB name [$DbName]"; if ($i) { $DbName = $i }
 }
+# -SkipDb 여도 값은 .env 의 DATABASE_URL 에 들어가므로 항상 검사한다.
+Assert-DbValues
 
 # DB 사전 접속 검사 (psql 로 SELECT 1) — 접속 정보 입력 직후 1회 가볍게 확인한다.
 # 실패하면 접속 실패 요지를 경고하고, 대화형이면 1회 재입력, 비대화형이면 DB 단계 전체를 건너뛴다.
@@ -411,6 +505,7 @@ if (-not $SkipDb) {
           if ($_pw) { $DbPassword = $_pw }
         } catch {}
         $i = Read-HostSafe "DB name [$DbName]"; if ($i) { $DbName = $i }
+        Assert-DbValues
         continue
       }
       Write-Warn2 "DB 접속 불가로 판단 — DB 생성/마이그레이션 단계를 건너뜁니다"
@@ -420,12 +515,11 @@ if (-not $SkipDb) {
   }
 }
 
-# DB 이름 따옴표 검사 (SQL 구문 오류를 난해한 메시지 대신 명확한 에러로)
-if ($DbName -match "['`"]") {
-  Stop-Scaffold "DB 이름에 따옴표(' `")는 사용할 수 없습니다: $DbName"
-}
-# 사용자·비밀번호는 URL 인코딩해 DATABASE_URL 에 넣는다 (@ : / # ? % 등 특수문자 안전)
+# 사용자·비밀번호는 URL 인코딩해 DATABASE_URL 에 넣는다 (@ : / # ? % 줄바꿈 등 특수문자 안전).
+# 호스트·이름은 위 Assert-DbValues 의 허용 목록을 통과한 값이라 인코딩이 필요 없다.
 $databaseUrl = "postgresql+psycopg2://$([uri]::EscapeDataString("$DbUser")):$([uri]::EscapeDataString("$DbPassword"))@${DbHost}:${DbPort}/${DbName}"
+# ⛔ 방어 이중화 — 제어 문자(줄바꿈 등)가 남아 있으면 .env 에 다른 키를 끼워 넣을 수 있다. 쓰기 전에 중단한다.
+if ($databaseUrl -match '\p{Cc}') { Stop-Scaffold "DATABASE_URL 에 제어 문자가 있습니다 — 중단합니다." }
 # SECRET_KEY 는 Flask 서명 쿠키(flash·CSRF 토큰)의 서명키이므로 암호학적 난수 사용 (scaffold.sh 의 openssl rand 대응).
 # 32 bytes(64 hex) — 앱의 운영 하한(32 bytes)을 넉넉히 넘는다.
 $_rngBytes = New-Object byte[] 32
@@ -446,7 +540,9 @@ Write-Step "골격 복사 → $Target"
 #    그대로 복사되면 생성 프로젝트가 부풀고 토큰 치환이 산출물을 붙잡는다. 실제 .env 가 복사되면
 #    템플릿의 SECRET_KEY 가 새는 보안 문제도 된다 (scaffold.sh 의 tar --exclude 와 동일 결과).
 #    robocopy 는 Windows 기본 탑재이고 /XD·/XF 로 디렉터리·파일을 원천 제외한다.
-robocopy $SkeletonDir $Target /E /XD $CopyExcludeDirs /XF $CopyExcludeFiles /NFL /NDL /NJH /NJS /NP | Out-Null
+#    /XJ 는 골격 안의 정션·심볼릭 링크를 따라가지 않는다 — 링크가 가리키는 골격 밖 내용이 복사되지 않는다
+#    (scaffold.sh 의 tar 도 링크를 따라가지 않는다. 골격에는 링크가 없다).
+robocopy $SkeletonDir $Target /E /XJ /XD $CopyExcludeDirs /XF $CopyExcludeFiles /NFL /NDL /NJH /NJS /NP | Out-Null
 # robocopy 종료 코드: 0~7 = 성공(복사 결과 비트마스크), 8 이상 = 실패
 if ($LASTEXITCODE -ge 8) { Stop-Scaffold "골격 복사 실패 (robocopy 코드 $LASTEXITCODE) — 중단합니다" }
 # ⛔ 성공 시에도 robocopy 는 1(복사함)을 남긴다. 지우지 않으면 스크립트 종료 코드로 새어 나가
@@ -496,9 +592,13 @@ $_stack.Push([System.IO.DirectoryInfo]::new($Target))
 while ($_stack.Count -gt 0) {
   $_dir = $_stack.Pop()
   foreach ($_sub in $_dir.GetDirectories()) {
+    # ⛔ 링크(정션·심볼릭 링크) 폴더는 따라가지 않는다 — 대상 밖의 파일을 치환하게 된다(scaffold.sh 의 os.walk 와 같다).
+    if ($_sub.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
     if ($PruneDirs -cnotcontains $_sub.Name) { $_stack.Push($_sub) }
   }
   foreach ($_f in $_dir.GetFiles()) {
+    # 링크 파일도 건너뛴다 — 쓰기가 링크 너머의 원본 파일에 닿는다(scaffold.sh 와 같다).
+    if ($_f.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
     if ($TokenExtensions -cnotcontains $_f.Extension) { continue }
     $_orig = $_latin1.GetString([System.IO.File]::ReadAllBytes($_f.FullName))
     $_new = $_orig
@@ -558,10 +658,13 @@ if (Test-Path -LiteralPath $_envPath) {
   Write-Warn2 "기존 .env 를 백업했습니다: $(Split-Path $_envBak -Leaf)"
 }
 # 빈 파일을 먼저 만들고 권한을 제한한 뒤 내용을 쓴다 — 비밀이 상속 ACL 상태로 디스크에 놓이는 순간이 없다.
+# ⛔ 권한 제한에 실패하면 비밀을 쓰지 않고 중단한다 — 상속 ACL 그대로 쓰면 다른 사용자도 읽는다
+#    (scaffold.sh 는 umask 077 로 처음부터 소유자 전용 파일을 만들고, 만들지 못하면 중단한다).
 [System.IO.File]::WriteAllText($_envPath, "", $Enc)
 try { Set-OwnerOnlyAcl $_envPath } catch {
-  Write-Warn2 ".env 권한 설정 실패 — 파일 접근 권한을 직접 제한하세요: $($_.Exception.Message)"
-  Add-Incomplete ".env 권한 제한"
+  $_aclErr = $_.Exception.Message
+  Remove-Item -LiteralPath $_envPath -Force -ErrorAction SilentlyContinue
+  Stop-Scaffold ".env 권한 제한 실패 — 비밀값을 쓰지 않고 중단합니다 ($_aclErr). 폴더 권한을 확인한 뒤 다시 실행하세요."
 }
 [System.IO.File]::WriteAllText($_envPath, $envContent, $Enc)
 Write-Ok ".env 생성 (DATABASE_URL, SECRET_KEY 주입)"
@@ -583,11 +686,11 @@ if (-not $SkipInstall) {
         Write-Warn2 "venv 생성 실패 — 'python -m venv .venv' 로 직접 확인하세요"
         Add-Incomplete "venv 생성"
       } else {
-        & $venvPy -m pip install --upgrade pip --quiet
-        if ($LASTEXITCODE -ne 0) { Write-Warn2 "pip 자체 업그레이드 실패 — 기존 pip 로 계속합니다" }
-        & $venvPy -m pip install -r requirements.txt
+        # ⛔ pip 자체를 --upgrade 로 올리지 않는다(고정되지 않은 최신 pip 를 받는다). venv 에 딸린 pip 로
+        #    전이 의존성까지 해시로 고정한 requirements.lock 을 설치한다 — 해시가 다른 파일은 설치하지 않는다(scaffold.sh 와 같다).
+        & $venvPy -m pip install --require-hashes -r requirements.lock
         if ($LASTEXITCODE -ne 0) {
-          Write-Warn2 "pip install 미완료 — '.\.venv\Scripts\python -m pip install -r requirements.txt'"
+          Write-Warn2 "pip install 미완료 — '.\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock'"
           Add-Incomplete "의존성 설치 (pip install)"
         } else { Write-Ok "의존성 설치 완료" }
       }
@@ -737,7 +840,7 @@ if ($SkipInstall) {
   Write-Host "[설치]    -SkipInstall 로 생략한 단계를 먼저 실행 (Python $_minPython 이상):" -ForegroundColor White
   Write-Host "  cd `"$Target`"" -ForegroundColor White
   Write-Host "  python -m venv .venv" -ForegroundColor White
-  Write-Host "  .\.venv\Scripts\python -m pip install -r requirements.txt" -ForegroundColor White
+  Write-Host "  .\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock" -ForegroundColor White
   if (-not $SkipDb) { Write-Host "  .\.venv\Scripts\python -m alembic upgrade head" -ForegroundColor White }
   Write-Host "  .\scripts\tailwind.ps1" -ForegroundColor White
   Write-Host ""

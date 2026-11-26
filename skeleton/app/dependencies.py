@@ -28,11 +28,17 @@ from app.models.user import User, UserRole
 from app.services import session_service, user_service
 from app.web.accept import wants_json
 
+# 인증 쿠키 기본 이름. HTTPS(COOKIE_SECURE=true)에서는 __Host- 접두사를 붙인다 — auth_cookie_name().
 AUTH_COOKIE = "__PROJECT_SNAKE___session"
 AUTH_COOKIE_PATH = "/"
 SECONDS_PER_DAY = 86400
 
 _SESSION_FACTORY_KEY = "db_session_factory"
+
+
+def auth_cookie_name() -> str:
+    """실제 인증 쿠키 이름. __Host- 는 Secure·Path=/·Domain 없음 쿠키만 허용돼 형제 서브도메인의 쿠키 심기를 막는다."""
+    return ("__Host-" if get_settings().cookie_secure else "") + AUTH_COOKIE
 
 
 def init_app(app: Flask, session_factory: sessionmaker[Session]) -> None:
@@ -86,7 +92,7 @@ def _load_current_user() -> None:
     # 정적 파일·헬스 체크는 DB 를 열지 않는다.
     if request.endpoint in (None, "static") or request.path.startswith("/api/v1/health"):
         return
-    token = request.cookies.get(AUTH_COOKIE)
+    token = request.cookies.get(auth_cookie_name())
     if not token:
         return
     db = get_db()
@@ -166,7 +172,7 @@ def admin_required[F: Callable[..., Any]](view: F) -> F:
 def set_auth_cookie(response: Response, token: str) -> None:
     settings = get_settings()
     response.set_cookie(
-        AUTH_COOKIE,
+        auth_cookie_name(),
         token,
         max_age=settings.refresh_token_expire_days * SECONDS_PER_DAY,
         path=AUTH_COOKIE_PATH,
@@ -179,5 +185,5 @@ def set_auth_cookie(response: Response, token: str) -> None:
 def clear_auth_cookie(response: Response) -> None:
     settings = get_settings()
     response.delete_cookie(
-        AUTH_COOKIE, path=AUTH_COOKIE_PATH, secure=settings.cookie_secure, httponly=True, samesite="Lax"
+        auth_cookie_name(), path=AUTH_COOKIE_PATH, secure=settings.cookie_secure, httponly=True, samesite="Lax"
     )

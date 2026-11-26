@@ -8,7 +8,7 @@ import hmac
 import logging
 from datetime import timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -270,3 +270,18 @@ def revoke_all_for_user(db: Session, user_id: int, *, commit: bool = True) -> in
     if sessions:
         audit.info("사용자 세션 일괄 폐기: user_id=%s count=%s", user_id, len(sessions))
     return len(sessions)
+
+
+def purge_inactive_sessions(db: Session, *, retention: timedelta = timedelta(0), dry_run: bool = False) -> int:
+    """만료되거나 폐기된 지 retention 이 지난 세션 행을 지운다(운영 CLI cleanup-auth). dry_run 이면 세기만 한다.
+
+    지운 세션의 refresh 토큰은 어차피 쓸 수 없다(만료·폐기). 다만 행이 없으면 그 토큰으로 다시 시도해도
+    "refresh 거부(폐기/만료)" 감사 기록이 남지 않고 폐기 시각도 사라지므로, 감사 추적이 필요하면 retention 을 둔다.
+    """
+    cutoff = now() - retention
+    stale = (AuthSession.expires_at <= cutoff) | (AuthSession.revoked_at <= cutoff)
+    if dry_run:
+        return int(db.scalar(select(func.count()).select_from(AuthSession).where(stale)) or 0)
+    result = db.execute(delete(AuthSession).where(stale).execution_options(synchronize_session=False))
+    db.commit()
+    return int(result.rowcount or 0)

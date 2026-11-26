@@ -62,6 +62,8 @@ class RevokedCount(BaseModel):
 
 class LoginThrottleRead(BaseModel):
     username: str
+    # 정규화한 접속 IP(IPv6 는 /64 네트워크, 알 수 없으면 "unknown"). None 이면 username 전체 합산 칸이다.
+    client_ip: str | None
     failed_count: int
     locked_until: datetime | None
     last_failed_at: datetime

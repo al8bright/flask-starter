@@ -31,6 +31,7 @@ from app.config import (
 from app.core import storage
 from app.core.logging import configure_logging
 from app.web import register_blueprints
+from app.web.body_limit import register_body_limit
 from app.web.errors import register_error_handlers
 from app.web.proxy import apply_proxy_fix
 from app.web.security_headers import register_security_headers
@@ -40,11 +41,19 @@ logger = logging.getLogger(__name__)
 PROJECT_NAME = "__PROJECT_NAME__"
 
 MB = 1024 * 1024
-# 요청 본문 전체 상한 = 가장 큰 업로드 상한 + 폼 필드 여유. 넘으면 Werkzeug 가 413 을 낸다.
+# 요청 본문 상한. 넘으면 Werkzeug 가 413 을 낸다.
+# - 기본: 폼 필드 상한 + 여유. 파일을 받지 않는 모든 경로(로그인 포함)에 적용한다.
+# - 업로드: 가장 큰 업로드 상한 + 여유. 관리자 업로드 경로의 관리자 요청에만 적용한다(app/web/body_limit.py).
 # 파일별 상한(이미지·첨부)은 app/web/files.py 의 read_upload 가 따로 검사한다.
 REQUEST_BODY_MARGIN_BYTES = 2 * MB
-# 파일이 아닌 폼 필드 합계 상한 — Werkzeug 기본(500 KB)으로는 공지 본문 상한(20만 자, 한글 3 bytes)을 받지 못한다.
+# multipart 폼의 파일이 아닌 필드 상한 — Werkzeug 기본(500 KB)으로는 공지 본문(20만 자)을 받지 못한다.
+# 공지 작성·수정은 urlencoded 폼이라 기본 본문 상한을 받는다. 한글이 퍼센트 인코딩으로 글자당 9 bytes 가 되어
+# 최대 약 1.8 MB 이므로 DEFAULT_BODY_LIMIT_BYTES 를 2 MB 아래로 내리지 않는다.
 MAX_FORM_MEMORY_BYTES = 1 * MB
+DEFAULT_BODY_LIMIT_BYTES = MAX_FORM_MEMORY_BYTES + REQUEST_BODY_MARGIN_BYTES
+# __Host- 접두사 쿠키는 Secure·Path=/·Domain 없음일 때만 브라우저가 받는다 — 형제 서브도메인이 같은 이름의
+# 쿠키를 심는 공격(cookie tossing)을 막는다. HTTPS(COOKIE_SECURE=true)일 때만 붙인다(app/dependencies.py).
+HOST_COOKIE_PREFIX = "__Host-"
 
 csrf = CSRFProtect()
 
@@ -139,12 +148,11 @@ def create_app(*, session_factory: sessionmaker[Session] | None = None) -> Flask
     flask_app.config.update(
         # Flask 서명 쿠키(session)는 flash 메시지와 CSRF 토큰에만 쓴다 — 인증은 DB 세션 쿠키다 (§9).
         SECRET_KEY=settings.secret_key,
-        SESSION_COOKIE_NAME="__PROJECT_SNAKE___flash",
+        SESSION_COOKIE_NAME=(HOST_COOKIE_PREFIX if settings.cookie_secure else "") + "__PROJECT_SNAKE___flash",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=settings.cookie_secure,
-        MAX_CONTENT_LENGTH=max(settings.max_image_upload_mb, settings.max_attachment_upload_mb) * MB
-        + REQUEST_BODY_MARGIN_BYTES,
+        MAX_CONTENT_LENGTH=DEFAULT_BODY_LIMIT_BYTES,
         MAX_FORM_MEMORY_SIZE=MAX_FORM_MEMORY_BYTES,
         # CSRF 토큰 만료를 Flask 세션 수명에 맡긴다 — 기본 1시간이면 긴 글 작성 중 저장이 실패한다.
         WTF_CSRF_TIME_LIMIT=None,
@@ -152,12 +160,18 @@ def create_app(*, session_factory: sessionmaker[Session] | None = None) -> Flask
         TEMPLATES_AUTO_RELOAD=settings.app_env == "development",
     )
     # 앞단 프록시(nginx)가 HTTPS 를 끝낼 때 원래 요청의 scheme·host·IP 를 복원한다(app/web/proxy.py).
-    apply_proxy_fix(flask_app, cookie_secure=settings.cookie_secure)
+    apply_proxy_fix(flask_app, cookie_secure=settings.cookie_secure, app_env=settings.app_env)
     flask_app.jinja_env.globals["project_name"] = PROJECT_NAME
     flask_app.jinja_env.globals["csrf_field"] = csrf_field
 
-    csrf.init_app(flask_app)
+    # 순서: 현재 사용자 → 업로드 본문 상한 → CSRF. CSRF 가 본문을 읽기 전에 상한이 정해져야 한다.
     dependencies.init_app(flask_app, session_factory)
+    register_body_limit(
+        flask_app,
+        upload_limit_bytes=max(settings.max_image_upload_mb, settings.max_attachment_upload_mb) * MB
+        + REQUEST_BODY_MARGIN_BYTES,
+    )
+    csrf.init_app(flask_app)
     register_security_headers(flask_app)
     register_error_handlers(flask_app)
     register_blueprints(flask_app)

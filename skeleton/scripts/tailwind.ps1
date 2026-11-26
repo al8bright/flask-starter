@@ -6,6 +6,7 @@
 #   .\scripts\tailwind.ps1 -Watch    개발 중 변경 감시
 #
 # CLI 는 처음 한 번 .tools\ 에 내려받고, scripts\tailwind-sha256sums.txt 의 SHA-256 과 맞을 때만 쓴다.
+# 해시는 실행할 때마다 다시 확인하며, 내려받아 둔 파일이 다르면 지우고 다시 내려받는다.
 # 입력: app\static\css\input.css → 출력: app\static\css\app.css (.gitignore 대상)
 param([switch]$Watch)
 
@@ -24,14 +25,24 @@ $Asset = 'tailwindcss-windows-x64.exe'
 $ToolsDir = Join-Path $Root '.tools'
 $Bin = Join-Path $ToolsDir "tailwindcss-$Version-windows-x64.exe"
 
-if (-not (Test-Path -LiteralPath $Bin)) {
-    $expected = $null
-    foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'scripts\tailwind-sha256sums.txt')) {
-        $parts = $line -split '\s+'
-        if ($parts.Count -ge 2 -and $parts[1] -eq $Asset) { $expected = $parts[0].ToLowerInvariant() }
-    }
-    if (-not $expected) { throw "tailwind-sha256sums.txt 에 $Asset 항목이 없습니다." }
+$expected = $null
+foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'scripts\tailwind-sha256sums.txt')) {
+    $parts = $line -split '\s+'
+    if ($parts.Count -ge 2 -and $parts[1] -eq $Asset) { $expected = $parts[0].ToLowerInvariant() }
+}
+if (-not $expected) { throw "tailwind-sha256sums.txt 에 $Asset 항목이 없습니다." }
 
+# ⛔ 내려받아 둔 CLI 도 실행할 때마다 SHA-256 을 다시 확인한다 — .tools\ 의 파일이 바뀌었으면(손상·교체)
+#    실행하지 않고 지운 뒤 새로 내려받는다(tailwind.sh 와 같다).
+if (Test-Path -LiteralPath $Bin) {
+    $cached = (Get-FileHash -Algorithm SHA256 -LiteralPath $Bin).Hash.ToLowerInvariant()
+    if ($cached -ne $expected) {
+        Write-Warning "내려받아 둔 Tailwind CLI 의 SHA-256 이 다릅니다 — 지우고 다시 내려받습니다 (기대 $expected, 실제 $cached)."
+        Remove-Item -Force -LiteralPath $Bin
+    }
+}
+
+if (-not (Test-Path -LiteralPath $Bin)) {
     New-Item -ItemType Directory -Force -Path $ToolsDir | Out-Null
     # 내려받기는 시스템 임시 폴더에서 한다 — PS 5.1 의 Invoke-WebRequest -OutFile 은 경로의 [ ] 를 와일드카드로 해석한다.
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("tailwindcss-" + [guid]::NewGuid().ToString("N") + ".download")

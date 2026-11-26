@@ -1,26 +1,65 @@
-# systemd 서비스 — gunicorn 으로 앱 팩토리를 띄운다(127.0.0.1:8000, 앞단은 nginx — deploy/nginx.conf).
-# 설치: sudo cp deploy/app.service /etc/systemd/system/__PROJECT_SNAKE__.service && sudo systemctl daemon-reload
-#       sudo systemctl enable --now __PROJECT_SNAKE__
-# User·Group 은 코드 폴더(/srv/__PROJECT_SNAKE__)를 소유한 배포 계정으로 바꾼다(예시는 deploy).
-# 설정은 프로젝트 루트 .env 하나에서 읽는다(app/config.py) — 여기에 비밀값을 두지 않는다.
+# systemd 서비스 — gunicorn 으로 앱 팩토리를 띄운다. 앞단은 nginx(deploy/nginx.conf)이고 TCP 포트를 열지 않는다.
+# 설치(root 소유 사본): sudo install -o root -g root -m 0644 deploy/app.service /etc/systemd/system/__PROJECT_SNAKE__.service
+#       sudo systemd-analyze verify /etc/systemd/system/__PROJECT_SNAKE__.service
+#       sudo systemctl daemon-reload && sudo systemctl enable --now __PROJECT_SNAKE__
+#
+# 실행 계정은 셸·sudo 가 없는 전용 시스템 계정 __PROJECT_SNAKE__ 다(deploy/README.md 「최초 설치」 1단계).
+# 코드(/srv/__PROJECT_SNAKE__)는 배포 계정 소유이고 이 계정은 읽기만 한다. 쓰기는 업로드 폴더(ReadWritePaths)와
+# 소켓 폴더(RuntimeDirectory)·전용 /tmp(PrivateTmp)에만 된다.
+# 설정은 프로젝트 루트 .env 하나에서 읽는다(app/config.py) — 여기에 비밀값이나 앱 설정 키를 두지 않는다.
+# 프로세스 환경변수는 .env 값보다 우선하므로 Environment= 에 앱 설정 키를 넣으면 .env 를 조용히 덮는다.
 # 워커 수·타임아웃은 출발점이다(워커는 보통 CPU 코어 수 × 2 + 1 이하) — 서버 사양에 맞게 정한다.
+# 점검: sudo systemd-analyze security __PROJECT_SNAKE__ (노출 점수 — 낮을수록 좁다)
 [Unit]
 Description=__PROJECT_NAME__ (gunicorn)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=deploy
-Group=deploy
+User=__PROJECT_SNAKE__
+Group=__PROJECT_SNAKE__
 WorkingDirectory=/srv/__PROJECT_SNAKE__
+
+# 소켓 폴더 /run/__PROJECT_SNAKE__ — 기동할 때 만들고 멈추면 지운다. 소유 __PROJECT_SNAKE__:www-data, 0750 이라
+# 앱 계정과 nginx(www-data)만 들어갈 수 있다. 다른 로컬 사용자는 소켓에 닿지 못해 nginx 를 건너뛰고
+# X-Forwarded-* 를 위조할 수 없다. 그룹 변경은 root 로 실행한다(+ 접두사).
+RuntimeDirectory=__PROJECT_SNAKE__
+RuntimeDirectoryMode=0750
+ExecStartPre=+/usr/bin/chgrp www-data /run/__PROJECT_SNAKE__
+# 소켓 파일 자체는 gunicorn 기본 --umask 0 으로 0777 이다 — 접근 제한은 위 폴더 권한이 맡는다.
+# --umask 를 좁히면 소켓 그룹이 __PROJECT_SNAKE__ 라 nginx 가 접속하지 못한다.
 ExecStart=/srv/__PROJECT_SNAKE__/.venv/bin/gunicorn "app.main:create_app()" \
-    --bind 127.0.0.1:8000 --workers 3 --timeout 60 --graceful-timeout 30 \
+    --bind unix:/run/__PROJECT_SNAKE__/gunicorn.sock --workers 3 --timeout 60 --graceful-timeout 30 \
     --access-logfile - --error-logfile -
-Environment=PYTHONUNBUFFERED=1
+# 코드 폴더가 읽기 전용이므로 바이트코드(__pycache__)를 쓰지 않게 한다.
+Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+# 업로드 파일은 0640(그룹 __PROJECT_SNAKE__ 읽기)으로 만든다.
+UMask=0027
 Restart=always
 RestartSec=3
+
+# --- 격리 ---
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+# 앱이 쓰는 곳은 UPLOAD_DIR 하나뿐이다(app/core/storage.py) — .env 의 UPLOAD_DIR 과 같은 경로여야 한다.
+# 폴더가 없으면 기동이 실패한다(README 「최초 설치」에서 만든다).
+ReadWritePaths=/var/lib/__PROJECT_SNAKE__/uploads
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+# DB 접속(TCP 또는 PostgreSQL 유닉스 소켓)과 gunicorn 소켓만 쓴다.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target

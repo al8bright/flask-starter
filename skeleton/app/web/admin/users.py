@@ -13,7 +13,7 @@ from app.services import admin_service
 from app.web.admin import bp
 from app.web.forms import checkbox, parse_form
 from app.web.htmx import is_htmx
-from app.web.pagination import page_arg, page_links
+from app.web.pagination import int_arg, page_arg, page_links
 
 ROLE_FILTERS = ("user", "admin")
 
@@ -59,14 +59,12 @@ def revoke_user_sessions(user_id: int) -> Response:
 
 @bp.get("/sessions")
 def sessions() -> str:
-    user_id = request.args.get("user_id", "")
-    result = admin_service.list_sessions(
-        get_db(), user_id=int(user_id) if user_id.isdigit() else None, page=page_arg(), size=DEFAULT_PAGE_SIZE
-    )
+    user_id = int_arg("user_id")
+    result = admin_service.list_sessions(get_db(), user_id=user_id, page=page_arg(), size=DEFAULT_PAGE_SIZE)
     return render_template(
         "admin/sessions.html",
         result=result,
-        pages=page_links(result, "admin.sessions", user_id=user_id or None),
+        pages=page_links(result, "admin.sessions", user_id=user_id),
         throttles=admin_service.list_login_throttles(get_db()),
     )
 
@@ -78,8 +76,10 @@ def revoke_session(session_id: int) -> Response:
     return redirect(url_for("admin.sessions"))
 
 
-@bp.post("/login-throttles/<path:username>/clear")
-def clear_login_throttle(username: str) -> Response:
+@bp.post("/login-throttles/clear")
+def clear_login_throttle() -> Response:
+    # 아이디는 URL 이 아니라 폼 값으로 받는다 — 공격자가 만든 아이디(../ 등)가 경로를 바꾸지 못한다.
+    username = request.form.get("username", "")
     admin_service.clear_login_throttle(get_db(), username)
     flash(f"{username} 의 로그인 잠금을 해제했습니다.", "success")
     return redirect(url_for("admin.sessions"))

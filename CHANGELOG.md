@@ -7,6 +7,30 @@
 
 ---
 
+## 2026-11-26 — 공개 저장소 보안 점검 반영
+
+영역별 보안 점검(비밀값·이력, 운영 단서, 인증, XSS·CSRF, 업로드, 권한, 설정·배포, 스크립트, 공급망, DB·주입) 결과를 반영하였다. 아래는 영향 범위와 조치만 적는다.
+
+### Security (보안)
+
+- **저장소 이력**: 옛 스캐폴더 커밋에 남아 있던 개인 연락처를 이력에서 지우고(`git filter-repo`), 작성자 이메일을 GitHub noreply 주소로 바꿔 강제 push 하였다. 모든 커밋 해시가 바뀌었다 — 이전 해시로 생성한 프로젝트의 `.flask-starter` `commit=` 는 새 이력에 없다(문서 속 해시는 새 값으로 고쳤다). GitHub 설정: 비밀값 스캔·push 차단, Dependabot 알림·보안 업데이트, `main` 강제 push·삭제 차단 규칙.
+- **공개 절차**: `SECURITY.md` 「보안 수정 공개 절차」 — 운영 중인 생성 프로젝트에 먼저 반영한 뒤 공개하고, 보안 항목에는 재현 절차를 쓰지 않는다. 루트 AGENTS 「보안 수정」.
+- **공통 계층**(원본 저장소에서 고쳐 다시 복사): 로그인 잠금을 (아이디, 접속 IP) 칸 + 아이디 전체 합산 칸으로 나누고 검증 전 원자적 예약으로 바꿨다(마이그레이션 `0005_login_throttle_per_ip`). 감사 로그의 사용자 입력 이스케이프와 아이디 제어 문자 거부, `cleanup-auth` CLI, JPEG 주석·ICC 제거와 GIF 재저장·프레임 상한, 세션 쿠키 파싱 강화, DB 헬스 응답 최소화, 조회수 증가 없는 공지 조회 함수.
+- **웹 계층**: 기본 요청 본문 상한을 폼 수준으로 낮추고 관리자 업로드 경로의 관리자 요청만 업로드 상한을 연다(`app/web/body_limit.py`). HTTPS 에서 쿠키 이름에 `__Host-` 접두사. `Permissions-Policy`. 쿼리 정수 파싱 강화. 접속 IP 를 로그인 잠금에 넘긴다. HEAD·미리 가져오기·하위 리소스 요청은 조회수에서 뺀다. 잠금 해제 경로를 폼 값으로 받는다(`POST /admin/login-throttles/clear`). 프록시 신뢰를 켰는데 `APP_ENV` 가 기본값이면 기동을 거부한다.
+- **배포 예시**: 셸·sudo 없는 전용 실행 계정, systemd 격리, 유닉스 소켓, nginx `server_tokens off`·알 수 없는 Host 차단·`/api/v1/health/db` 외부 차단·업로드 경로 한정 본문 상한·root 소유 include, DB 소유·앱 계정 분리, `deploy.sh` 의 root 실행 거부·`APP_ENV` 확인.
+- **스크립트**: DB 비밀번호를 `SCAFFOLD_DB_PASSWORD` 로 받는다(인자는 경고). DB 접속 값 검사. PS 판은 링크를 푼 경로로 대상 위치를 확인하고 링크 폴더를 따라가지 않으며, `.env` 권한 제한에 실패하면 중단한다. Tailwind CLI 는 실행마다 SHA-256 을 다시 확인한다.
+- **공급망·CI**: 전이 의존성까지 해시로 고정한 `requirements.lock`(uv 0.13.10, 기준 시각 2026-11-25T00:00:00Z, `scripts/lock.py`)으로 설치하고 pip 자체 업그레이드를 없앴다. CI 도구도 `requirements-ci.lock` 으로 고정하였다. lock 정합 검사 잡, 매주 정기 실행, Dependabot. 액션은 커밋 SHA, `postgres` 는 digest 로 고정하고 `persist-credentials: false`.
+- `skeleton/.gitignore`: 인증서·개인키, `.claude/settings.local.json`.
+
+### 검증
+
+- 두 스캐폴드(`-SkipDb -SkipInstall`) 생성물이 `.env` 를 빼고 같음, 잔여 토큰 없음, `.env` 키 집합 = `.env.example`.
+- 생성물(Python 3.13.14): `pip install --require-hashes -r requirements.lock`·`pip check`·`ruff check` 통과, `pytest -W error::DeprecationWarning` 278 passed, `scripts/lock.py --check` 일치, `tailwind.ps1` 빌드.
+- PostgreSQL 16: `upgrade head` → `check` → `downgrade 0004_notices_banners` → `downgrade base` → `upgrade head` → `check` 통과. 원본 저장소에서 같은 IP 동시 로그인 20건 중 검증이 정확히 5건만 수행됨을 확인하였다.
+- 배포 예시: Docker `nginx:1.27` 에서 `nginx -t` 와 요청 확인, `ubuntu:24.04` 에서 `systemd-analyze verify`, `postgres:16` 에서 DB 계정 분리 권한 확인.
+- PS 5.1 구문 검사(5개)·BOM, `bash -n`·ShellCheck, `tools/` 단위 테스트, 공통 계층 동일성 통과. 저장소 오염 없음.
+- 미검증: 실제 systemd 기동·nginx 와 유닉스 소켓 연결·certbot·`deploy.sh` 전체 실행, `tailwind.sh` 실제 실행(Linux), GitHub Actions 실행·Dependabot 동작, 관리자 잠금 화면의 브라우저 확인.
+
 ## 2026-11-25 — 라이선스 범위와 보안 제보 경로
 
 ### Added (추가)

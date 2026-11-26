@@ -73,10 +73,89 @@ def test_jpeg_exif_applied_then_stripped(upload_dir):
     assert b"TestCamera" not in saved_bytes
 
 
-def test_gif_stored_byte_for_byte(upload_dir):
+def test_jpeg_comment_and_text_metadata_stripped(upload_dir):
+    # Pillow 는 JPEG 저장 시 im.info["comment"] 를 COM 세그먼트로 다시 쓴다 — 재인코딩본에 남으면 안 된다.
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 20), (10, 20, 30)).save(buf, format="JPEG", comment=b"SECRET-COMMENT")
+    data = buf.getvalue()
+    assert b"SECRET-COMMENT" in data
+    stored = storage.save_image(data, category="editor")
+    saved_bytes = (upload_dir / stored.key).read_bytes()
+    assert b"SECRET-COMMENT" not in saved_bytes
+    assert "comment" not in open_image(saved_bytes).info
+
+
+def test_png_text_and_icc_stripped(upload_dir):
+    from PIL import Image, PngImagePlugin
+
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text("Author", "SECRET-AUTHOR")
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 20)).save(buf, format="PNG", pnginfo=meta, icc_profile=b"SECRET-ICC" * 20)
+    stored = storage.save_image(buf.getvalue(), category="editor")
+    saved_bytes = (upload_dir / stored.key).read_bytes()
+    assert b"SECRET-AUTHOR" not in saved_bytes
+    assert b"SECRET-ICC" not in saved_bytes
+
+
+def _animated_gif(n_frames: int = 3, size: tuple[int, int] = (30, 30), **save_kwargs) -> bytes:
+    from PIL import Image
+
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+    frames = [Image.new("RGB", size, colors[i % len(colors)]).convert("P") for i in range(n_frames)]
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], **save_kwargs)
+    return buf.getvalue()
+
+
+def test_gif_resaved_without_comment_xmp_and_trailing_data(upload_dir):
+    data = _animated_gif(3, duration=[100, 200, 300], loop=0, disposal=[1, 2, 1], comment=b"SECRET-COMMENT")
+    # XMP 응용 확장 블록과 파일 끝(0x3B) 뒤 덧붙인 데이터 — 원본 그대로 저장하면 공개 URL 로 새어 나간다.
+    xmp = b"!\xff\x0bXMP DataXMP" + b"\x0dSECRET-XMP-01" + b"\x00"
+    assert data.endswith(b";")
+    data = data[:-1] + xmp + b";" + b"SECRET-TRAILER"
+    assert open_image(data).n_frames == 3
+    stored = storage.save_image(data, category="editor")
+    saved_bytes = (upload_dir / stored.key).read_bytes()
+    for marker in (b"SECRET-COMMENT", b"SECRET-XMP", b"SECRET-TRAILER"):
+        assert marker not in saved_bytes
+    saved = open_image(saved_bytes)
+    assert saved.n_frames == 3
+    assert (stored.width, stored.height) == (30, 30)
+    assert saved.info.get("loop") == 0
+    durations, disposals = [], []
+    for i in range(saved.n_frames):
+        saved.seek(i)
+        durations.append(saved.info.get("duration"))
+        disposals.append(saved.disposal_method)
+    assert durations == [100, 200, 300]
+    assert disposals == [1, 2, 1]
+
+
+def test_single_frame_gif_resaved(upload_dir):
     data = image_bytes("GIF", (30, 30))
     stored = storage.save_image(data, category="editor")
-    assert (upload_dir / stored.key).read_bytes() == data
+    saved = open_image((upload_dir / stored.key).read_bytes())
+    assert saved.format == "GIF"
+    assert saved.size == (30, 30)
+
+
+def test_gif_frame_count_over_limit_rejected(upload_dir, monkeypatch):
+    monkeypatch.setattr(storage, "MAX_GIF_FRAMES", 2)
+    with pytest.raises(StorageError) as exc:
+        storage.save_image(_animated_gif(3), category="editor")
+    assert exc.value.code == "invalid_image"
+    assert not upload_dir.exists() or not any(p.is_file() for p in upload_dir.rglob("*"))
+
+
+def test_gif_total_pixels_over_limit_rejected(monkeypatch):
+    # 30x30 캔버스 3프레임 = 2,700 픽셀 — 프레임당으로는 상한 안이어도 합계가 넘으면 거부한다.
+    monkeypatch.setattr(storage, "MAX_GIF_TOTAL_PIXELS", 2_000)
+    with pytest.raises(StorageError) as exc:
+        storage.save_image(_animated_gif(3), category="editor")
+    assert exc.value.code == "invalid_image"
 
 
 @pytest.mark.parametrize(

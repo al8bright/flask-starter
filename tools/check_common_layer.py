@@ -37,6 +37,7 @@ COMMON_PATHS = (
     "tests/media_factory.py",
     "tests/test_cli.py",
     "tests/test_config.py",
+    "tests/test_login_throttle.py",
     "tests/test_sanitize.py",
     "tests/test_storage.py",
 )

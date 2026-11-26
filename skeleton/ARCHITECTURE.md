@@ -72,7 +72,7 @@
 - **화면**: Jinja 템플릿 + **htmx 2**(`app/static/js/htmx.min.js` 벤더링, 버전은 `versions.env` 의 `HTMX_VERSION`) + `app/static/js/app.js`(확인 대화상자) + `app/static/js/editor/`(공지 본문 위지웍 편집기, 표준 DOM API 로 작성한 ES 모듈)
 - **스타일**: Tailwind CSS v4 **standalone CLI**(`scripts/tailwind.*` 가 `versions.env` 의 `TAILWIND_VERSION` 바이너리를 내려받아 SHA-256 을 확인한 뒤 빌드) — §15
 - **테스트·린트**: `pytest` + Flask `test_client`, `ruff`
-- **버전 고정**: `requirements.txt` 에 **`==` 정확한 버전 핀** (재현성 우선). 버전별 주의는 [`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)
+- **버전 고정**: `requirements.txt` 에 **`==` 정확한 버전 핀** (재현성 우선). 설치는 전이 의존성까지 버전·SHA-256 해시로 고정한 `requirements.lock` 으로만 한다(`pip install --require-hashes -r requirements.lock` — 하위 패키지가 바뀌어도 설치 결과가 같고, 바꿔치기된 파일은 설치되지 않는다). 버전별 주의는 [`stack-versions` 스킬](.claude/skills/stack-versions/SKILL.md)
 
 > 클라이언트 상태(모달 스택·드래그·실시간 동기화)가 화면의 핵심이면 htmx 로 흉내 내지 않는다. 형제 SPA 스타터(FastAPI + React)를 검토하고 결정을 §22 에 남긴다.
 
@@ -93,7 +93,7 @@
 ├── .claude/skills/          # 작업별 AI 스킬
 ├── deploy/                  # 운영 배포 예시 — systemd·nginx·deploy.sh (deploy/README.md)
 ├── docs/                    # 프로젝트 고유 문서 (PRD·유저 플로우·기획서·<연동>-가이드 등)
-├── requirements.txt · pyproject.toml(ruff) · pytest.ini
+├── requirements.txt(직접 핀) · requirements.lock(해시 lock — 설치용) · pyproject.toml(ruff) · pytest.ini
 ├── .env.example             # 키 목록 — 복사한 .env 는 커밋하지 않는다
 ├── .python-version
 ├── .flask-starter          # 이 프로젝트를 생성한 flask-starter 커밋(스캐폴드가 기록 — README 「템플릿 수정 반영」)
@@ -340,7 +340,7 @@ class Order(Base):
 |--------|--------|------|
 | `app_meta` | `0001_initial` | 연결 확인용 샘플(`/api/v1/health/db`) |
 | `users` | `0002_users` | 자체 계정 — `username`(unique)·`hashed_password`(bcrypt)·`role`(`user`/`admin`)·`is_active` |
-| `auth_sessions`, `login_throttles` | `0003_auth_sessions` | 로그인 세션(토큰 해시만 저장), 계정별 로그인 실패 카운터 (§9) |
+| `auth_sessions`, `login_throttles` | `0003_auth_sessions` · `0005_login_throttle_per_ip` | 로그인 세션(토큰 해시만 저장), (아이디, 접속 IP)별·아이디 전체 합산(`client_ip="*"`) 로그인 실패 카운터 (§9) |
 | `notices` | `0004_notices_banners` | 공지 — `body_html`(저장 시 정화), `is_pinned`, `is_published`, `published_at`(처음 게시 때 1회), `view_count`, `author_id`(FK users, `SET NULL`) |
 | `notice_attachments` | 〃 | 공지 첨부 — `notice_id`(FK, `CASCADE`), `storage_key`(private 키), `original_name`, `content_type`, `size_bytes`. 공지당 최대 10개 |
 | `banners` | 〃 | 배너 — `image_key`(public/banners 키)·`image_width/height`(서버가 잰 값), `link_url`(http(s) 또는 `/` 내부 경로만), `alt_text`, `starts_at`/`ends_at`(노출 기간, NULL=무제한), `sort_order`, `is_active` |
@@ -361,7 +361,7 @@ class Order(Base):
 - **첨부**: 확장자 허용 목록, `Content-Type` 은 클라이언트 값이 아니라 확장자 표로 정한다. 상한 `MAX_ATTACHMENT_UPLOAD_MB`. 다운로드는 `Content-Disposition: attachment; filename="<ASCII 대체>"; filename*=UTF-8''<RFC 5987>` + `Cache-Control: private, no-store`(`app/web/files.py` 의 `attachment_response`).
 - **경로 탈출 방지**: 키는 정규식에 맞아야 해석하고 해석된 경로가 `UPLOAD_DIR` 안인지 다시 확인한다. 공개 서빙 루트가 `UPLOAD_DIR/public` 이고 `send_from_directory` 가 루트 밖 경로를 거부하므로 `../` 로 private 에 닿지 않는다.
 - **URL**: 공개 파일 URL = `PUBLIC_FILES_BASE_URL` + `/uploads/` + key. 같은 오리진에서 서빙하면 비워 둔다(루트 상대 경로). 첨부 `download_url` 도 같은 접두사를 쓰며 경로 `/api/v1/notices/<id>/attachments/<aid>` 는 공통 `notice_service.download_url` 과 같아야 한다.
-- **요청 크기**: `MAX_CONTENT_LENGTH`(가장 큰 업로드 상한 + 여유)를 넘는 본문은 Werkzeug 가 413 으로 끊고, 파일별 상한은 `read_upload` 가 상한+1 바이트까지만 읽어 판정한다. 파일이 아닌 폼 필드는 `MAX_FORM_MEMORY_SIZE` 가 상한이다(공지 본문 상한을 받도록 Werkzeug 기본값보다 크게 둔다). 운영에서는 앞단 프록시에도 본문 상한을 둔다.
+- **요청 크기**: 기본 `MAX_CONTENT_LENGTH` 는 폼 필드 수준(3 MB)이고, 관리자 업로드 경로(`app/web/body_limit.py` 의 `UPLOAD_ENDPOINTS`)에 관리자가 보낸 요청만 가장 큰 업로드 상한 + 여유로 올린다 — CSRF 검사가 본문을 읽기 전에 정하므로 로그인하지 않은 큰 본문은 임시 파일에 쓰이기 전에 413 이 된다. 상한을 넘는 본문은 Werkzeug 가 413 으로 끊고, 파일별 상한은 `read_upload` 가 상한+1 바이트까지만 읽어 판정한다. 파일이 아닌 폼 필드는 `MAX_FORM_MEMORY_SIZE` 가 상한이다(공지 본문 상한을 받도록 Werkzeug 기본값보다 크게 둔다). 운영에서는 앞단 프록시에도 본문 상한을 둔다.
 - **삭제**: 공지·첨부·배너 행을 지우면 커밋 후 파일도 지운다(배너 이미지는 다른 배너가 같은 키를 참조하지 않을 때만). 본문 이미지는 본문 HTML 이 참조하므로 자동으로 지우지 않는다 — 고아 파일 정리는 별도 배치 몫.
 
 **본문 HTML 정화(`core/sanitize.py`, nh3)** — 공지 본문은 **서비스 계층이 저장 직전에** `sanitize_html` 을 거친다(관리자 입력도 믿지 않는다). 보기 화면은 저장된(정화된) HTML 만 `|safe` 로 넣는다.
@@ -380,10 +380,10 @@ class Order(Base):
 | `GET·POST /login` · `POST /logout` | 공개 | 로그인(성공 시 `next` 또는 역할별 홈) · 로그아웃 (§14) |
 | `GET /admin/` | admin | 대시보드 — 사용자·활성 세션·잠긴 계정·공지(게시/초안)·활성 배너 집계, DB 상태·Alembic 리비전 |
 | `/admin/users` · `POST /admin/users/<id>` · `POST /admin/users/<id>/sessions/revoke` | 〃 | 역할·활성 변경(htmx 행 저장 예제), 자기 강등·비활성 금지, 마지막 활성 관리자 보호(409), 세션 모두 종료 |
-| `/admin/sessions` · `POST /admin/sessions/<id>/revoke` · `POST /admin/login-throttles/<username>/clear` | 〃 | 살아 있는 세션 목록·강제 종료, 로그인 잠금 해제 |
+| `/admin/sessions` · `POST /admin/sessions/<id>/revoke` · `POST /admin/login-throttles/clear`(폼 `username`) | 〃 | 살아 있는 세션 목록·강제 종료, 로그인 잠금 해제 |
 | `/admin/notices`(목록·`new`·`<id>`·`<id>/delete`) · `/admin/notices/<id>/attachments`(추가·다운로드·삭제) · `POST /admin/editor/images` | 〃 | 공지 작성·수정·삭제, 첨부, 본문 이미지 |
 | `/admin/banners`(목록·`new`·`<id>`·`<id>/delete`) · `POST /admin/banners/<id>/move` | 〃 | 배너 작성·수정(이미지 업로드)·삭제, 순서 이동(htmx 예제) |
-| `GET /api/v1/health` · `GET /api/v1/health/db` · `GET /api/v1/notices/<id>/attachments/<aid>` | 공개 | 헬스 체크 JSON(DB 장애 시 503), 게시된 공지의 첨부 다운로드 |
+| `GET /api/v1/health` · `GET /api/v1/health/db` · `GET /api/v1/notices/<id>/attachments/<aid>` | 공개(배포 예시는 `health/db` 를 nginx 에서 외부 차단) | 헬스 체크 JSON(DB 장애 시 503), 게시된 공지의 첨부 다운로드 |
 | `GET /uploads/public/<key>` | 공개 | 공개 업로드 파일 |
 
 ---
@@ -395,10 +395,11 @@ class Order(Base):
 ### 세션 모델 (자체 계정 — skeleton 구현)
 
 - **로그인 하나 = `auth_sessions` 행 하나.** 토큰은 JWT 가 아니라 불투명(opaque) 토큰 `"<session_id>.<urlsafe 무작위>"` 다. DB 에는 **SHA-256 해시만** 저장한다 — DB 가 유출되어도 평문 토큰을 복원할 수 없고, 검증은 해시 재계산 + 상수시간 비교(`hmac.compare_digest`)다.
-- **인증 쿠키**: 이름 `<snake>_session`, `Path=/`, `HttpOnly`, `SameSite=Lax`, `Secure=COOKIE_SECURE`, `Max-Age` = `REFRESH_TOKEN_EXPIRE_DAYS`(기본 14일). 세션의 절대 수명(`expires_at` = 로그인 시점 + 같은 일수)은 연장되지 않는다.
+- **인증 쿠키**: 이름 `<snake>_session`(HTTPS — `COOKIE_SECURE=true` 이면 `__Host-<snake>_session`), `Path=/`, `HttpOnly`, `SameSite=Lax`, `Secure=COOKIE_SECURE`, `Max-Age` = `REFRESH_TOKEN_EXPIRE_DAYS`(기본 14일). 세션의 절대 수명(`expires_at` = 로그인 시점 + 같은 일수)은 연장되지 않는다.
 - **요청마다 확인**: `before_request` 훅이 쿠키 토큰으로 세션 행(존재·미폐기·미만료·해시 일치)과 사용자(활성)를 DB 에서 다시 읽는다 — 로그아웃·관리자 강제 종료·비활성화·강등이 **다음 요청부터 바로** 반영된다. 역할도 쿠키가 아니라 DB 에서 읽는다(강등 즉시 403).
 - **회전 없음**: 형제 템플릿의 refresh 회전·재사용 감지는 짧은 access JWT 를 갱신하기 위한 장치다. 이 템플릿은 요청마다 DB 세션을 직접 확인하므로 토큰을 회전하지 않는다(`auth_sessions` 의 `prev_token_hash`·`rotated_at` 은 비어 있다).
-- **Flask `session`**: 서명 쿠키 `<snake>_flash` 는 flash 메시지와 CSRF 토큰만 담는다. ⛔ 사용자 id·역할을 넣지 않는다 — 서명 쿠키는 서버에서 폐기할 수 없다.
+- **쿠키 접두사**: `__Host-` 는 `Secure`·`Path=/`·`Domain` 없음일 때만 브라우저가 받으므로, 형제 서브도메인이 같은 이름의 쿠키를 심어 로그인 상태를 바꾸는 공격(cookie tossing)을 막는다. 쿠키 이름이 바뀌므로 `COOKIE_SECURE` 를 바꾸면 사용자는 한 번 다시 로그인한다.
+- **Flask `session`**: 서명 쿠키 `<snake>_flash`(HTTPS 면 `__Host-` 접두사) 는 flash 메시지와 CSRF 토큰만 담는다. ⛔ 사용자 id·역할을 넣지 않는다 — 서명 쿠키는 서버에서 폐기할 수 없다.
 
 ### 로그인 · 로그아웃 (`app/web/auth.py`)
 
@@ -413,8 +414,8 @@ class Order(Base):
 ### 로그인 보호 (계정 존재 비노출 · 시도 제한)
 
 - **실패 메시지 통일**: 로그인 실패는 원인(자격증명 불일치/비활성 계정)과 무관하게 같은 문구·같은 401 이다. 미존재 계정에도 **더미 bcrypt 해시로 1회 검증**해 응답 시간으로도 존재 여부가 드러나지 않게 한다.
-- **로그인 스로틀**: 계정(username)별 DB 카운터(`login_throttles`). 연속 실패가 `LOGIN_MAX_FAILURES`(기본 5) 이상이면 `LOGIN_LOCKOUT_MINUTES`(기본 15분) 동안 **429** + `Retry-After`(남은 초, 올림·최소 1)다. **미존재 계정도 같은 429 를 받는다.** 성공 시 스로틀 행은 삭제된다. 카운트 증가는 SQL 식 하나로 처리해 동시 요청에서도 사라지지 않는다. 잠금 단위가 계정이므로 제3자가 특정 계정을 반복 잠글 수 있다 — 운영에서는 앞단 프록시(또는 WAF)에 IP 단위 요청 제한을 함께 둔다(§21).
-- **감사 로그**: 보안 이벤트(로그인 성공/실패/잠금, 로그아웃, 관리자의 세션 폐기·잠금 해제·권한 변경, CLI 비밀번호 재설정)는 전용 로거 **`app.audit`** 로 남긴다. `app/core/logging.py` 가 `app` 로거에 표준 출력 핸들러를 붙이고 수준은 `LOG_LEVEL`(기본 `INFO`)이다.
+- **로그인 스로틀**: DB 카운터(`login_throttles`)의 잠금 단위는 **(아이디, 접속 IP) 칸**이다. 한 칸의 실패가 `LOGIN_MAX_FAILURES`(기본 5)에 닿으면 그 칸을 `LOGIN_LOCKOUT_MINUTES`(기본 15분) 동안 **429** + `Retry-After`(남은 초, 올림·최소 1)로 거부한다 — 계정 단위로만 잠그면 누구나 남의 아이디(관리자 포함)를 계속 잠글 수 있다. IP 를 바꿔 가며 대입하는 분산 공격의 상한으로 **아이디 전체 합산 칸**(`client_ip="*"`)을 두고 `LOGIN_MAX_FAILURES × 10`(고정 배수 `GLOBAL_FAILURE_MULTIPLIER`, 설정 키 아님)에 닿으면 아이디 전체를 같은 시간 잠근다. IPv6 는 /64 단위로 세고, 접속 IP 를 모르면 고정 칸을 쓴다. **미존재 계정도 같은 429 를 받는다.** 시도는 bcrypt 검증 **전에** 「잠기지 않은 칸만 +1」 하는 SQL 한 문장으로 예약하므로 동시 요청으로 한도를 넘길 수 없고, 성공하면 그 IP 칸의 몫을 되돌린다. 접속 IP 는 `request.remote_addr` 이므로 프록시 뒤에서는 `TRUSTED_PROXY_HOPS` 가 맞아야 한다(§5). 운영에서는 앞단 프록시(또는 WAF)의 IP 단위 요청 제한을 함께 둔다(§21).
+- **감사 로그**: 보안 이벤트(로그인 성공/실패/잠금, 로그아웃, 관리자의 세션 폐기·잠금 해제·권한 변경, CLI 비밀번호 재설정)는 전용 로거 **`app.audit`** 로 남긴다. 아이디처럼 사용자가 보낸 값은 `%r` 로 남겨(개행·제어 문자 이스케이프) 로그 줄을 위조할 수 없게 하고, 로그인 스키마는 아이디의 제어·서식 문자(유니코드 Cc·Cf·Cs·Zl·Zp)를 422 로 거부한다. `app/core/logging.py` 가 `app` 로거에 표준 출력 핸들러를 붙이고 수준은 `LOG_LEVEL`(기본 `INFO`)이다.
 
 ### 비밀번호 정책
 
@@ -428,6 +429,7 @@ class Order(Base):
 - `SECRET_KEY` 는 Flask 서명 쿠키(flash·CSRF 토큰)의 키다. 공개된 기본값(`change-me-in-production-use-32-bytes`)이거나 32 bytes 미만이면 개발에서는 **경고**, `APP_ENV=production` 에서는 **기동 실패**다(`app/main.py` 의 `check_startup_settings`). 스캐폴드가 `.env` 에 무작위로 생성해 넣는다.
 - `APP_ENV=production` 이면 `BCRYPT_ROUNDS` 12 미만, `COOKIE_SECURE=false`, `SEED_DEFAULT_ADMIN=true` 도 기동을 거부한다.
 - **운영 관리자 계정**은 명령줄 도구로 만든다 — `python -m app.cli create-admin --username <이름>`, 비밀번호 재설정은 `python -m app.cli set-password --username <이름>`(해당 사용자의 세션 전체 폐기·잠금 해제). 비밀번호는 인자로 받지 않고 대화형 입력 또는 `--password-stdin` 으로만 받는다.
+- **인증 기록 정리**: `auth_sessions` 는 로그인마다, `login_throttles` 는 시도한 (아이디, IP)마다 행이 쌓인다. `python -m app.cli cleanup-auth` 가 만료·폐기된 세션과 잠금이 없고 마지막 실패가 24시간(또는 잠금 시간 중 긴 쪽)보다 오래된 실패 칸을 지운다. `--dry-run` 은 건수만 출력하고, `--retention-days N` 은 만료·폐기 후 N일이 지난 세션만 지운다. cron·systemd timer 로 주기 실행한다.
 - 기본 관리자(`admin`)는 `SEED_DEFAULT_ADMIN=true` + `DEFAULT_ADMIN_PASSWORD` 로 기동 시 시드한다. **코드 기본값은 꺼짐**이다. `.env.example` 은 켠 상태에 비밀번호를 비워 두고, 스캐폴드가 개발용 `.env` 에 무작위 비밀번호를 채운다. 비밀번호가 비어 있으면 시드를 건너뛰고 에러 로그를 남긴다. ⛔ 비밀번호 기본값·하드코딩 기본 계정은 금지.
 
 ### SSO (도입 시 선택적 확장)
@@ -436,7 +438,7 @@ class Order(Base):
 
 ### 응답 보안 헤더 · CSP · 캐시 (`app/web/security_headers.py`)
 
-- 모든 응답에 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin` 을 붙인다.
+- 모든 응답에 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin`, `Permissions-Policy`(카메라·마이크·위치·결제 등 쓰지 않는 기능 차단 — fullscreen 은 유튜브 임베드 때문에 둔다)를 붙인다.
 - **CSP**: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`. 공지 본문의 외부 이미지 허용(`img-src https:`)과 YouTube embed(`frame-src`)는 정화 허용 목록(§8)과 한 쌍이다. `img-src blob:` 은 편집기가 업로드 중 미리보기(`URL.createObjectURL`)에 쓴다 — 저장 HTML 에는 `blob:` 이 남지 않는다(직렬화 때 업로드 중 자리표시를 제거한다). 이 CSP 가 htmx 사용 방식(§13)을 제한한다.
 - HSTS(`max-age=31536000`)는 `COOKIE_SECURE=true` 이거나 `APP_ENV=production` 일 때만 보낸다.
 - HTML 응답은 `Cache-Control: private, no-store` 가 기본이다(로그인 상태에 따라 내용이 달라진다). `/admin*`·`/login`·`/logout` 은 항상 `private, no-store`. 공개 업로드 파일은 길게 캐시한다(§8).
@@ -491,7 +493,7 @@ class Order(Base):
   - `db_session_factory` · `db_session`: 테스트 엔진에 바인딩된 세션 팩토리와 테스트별 세션.
   - `flask_app` · `client`: 테스트 DB 에 붙인 앱과 `test_client`.
   - `admin_user` · `normal_user`: 관리자·일반 사용자 행. `admin_client` · `user_client`: 그 계정으로 **실제 로그인**한 클라이언트.
-- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py`, `test_editor.py`(편집기 업로드 JSON·정화 후 출력 계약·모듈 import), `test_static_js.py`(`app/static/js/` 아래 모든 스크립트의 CSP 위반 코드 정적 점검 — 벤더링한 htmx 제외) 다. `test_startup.py` 는 프록시 신뢰(`TRUSTED_PROXY_HOPS`)도 검사한다.
+- 테스트 배치: 공통 계층은 형제 템플릿과 같은 `test_cli.py`·`test_config.py`·`test_login_throttle.py`(IP 칸·합산 칸·검증 전 예약·감사 로그 이스케이프·정리)·`test_sanitize.py`·`test_storage.py`(+ `media_factory.py`)이고, Flask 계층은 `test_startup.py`(기동 설정 검사·시드·보안 헤더·HSTS), `test_web_auth.py`(로그인·로그아웃·잠금·CSRF·`next`·즉시 무효화), `test_passwords.py`(비밀번호 정책·bcrypt 72 bytes 경계·계정 존재 비노출 — 형제 템플릿의 같은 검증을 폼 POST 기준으로 옮긴 것), `test_web_public.py`, `test_web_admin.py`, `test_editor.py`(편집기 업로드 JSON·정화 후 출력 계약·모듈 import), `test_static_js.py`(`app/static/js/` 아래 모든 스크립트의 CSP 위반 코드 정적 점검 — 벤더링한 htmx 제외), `test_web_hardening.py`(본문 상한·`__Host-` 쿠키·`Permissions-Policy`·정수 쿼리 파싱·(아이디, IP) 잠금·조회수 집계 대상·`APP_ENV` 검사) 다. `test_startup.py` 는 프록시 신뢰(`TRUSTED_PROXY_HOPS`)도 검사한다.
 - 화면 테스트는 상태 코드와 `get_data(as_text=True)` 안의 핵심 문구로 확인한다. htmx 경로는 partial 만 왔는지(전체 레이아웃 없음), 오류면 `HX-Retarget: #alerts` 인지 확인한다. 브라우저 동작(htmx 교체·CSP 위반 없음)은 테스트로 잡히지 않으므로 개발 서버에서 확인한다.
 
 ```python
@@ -614,7 +616,7 @@ def _clear_settings_cache():
 | `LOG_LEVEL` | `app.*` 로거 수준(감사 로그 `app.audit` 포함, 기본 `INFO`) |
 | `SECRET_KEY` | Flask 서명 쿠키(flash·CSRF 토큰) 키 — 스캐폴드가 무작위 생성 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | 로그인 세션 수명(일, 기본 14) — `auth_sessions` 만료와 인증 쿠키 `Max-Age`. 키 이름은 공통 설정을 따른다(§9) |
-| `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_MINUTES` | 로그인 시도 제한 — 계정별 연속 실패 임계치(기본 5)와 잠금 시간(분, 기본 15) (§9) |
+| `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_MINUTES` | 로그인 시도 제한 — (아이디, 접속 IP) 칸의 연속 실패 임계치(기본 5, 아이디 전체 합산은 10배)와 잠금 시간(분, 기본 15) (§9) |
 | `BCRYPT_ROUNDS` | bcrypt 비용(기본 12, 운영 하한 12) — 테스트만 낮춘다(`.env.example` 에는 주석으로만 있다) |
 | `COOKIE_SECURE` | 인증·flash 쿠키의 `Secure` 속성과 HSTS·CSRF 엄격 검사. 로컬 `false`, 운영(HTTPS) `true` 필수(아니면 기동 거부) |
 | `UPLOAD_DIR` | 업로드 저장 위치(기본 `uploads`, 상대 경로는 프로젝트 루트 기준). `public/` 만 `/uploads/public` 으로 서빙 (§8) |
@@ -654,7 +656,7 @@ def _clear_settings_cache():
 
 원칙:
 - 커밋·push 전에 로컬에서 `pip check`·`ruff check`·`pytest` 를 통과시킨다. 템플릿·CSS·htmx 를 바꿨으면 CSS 를 빌드하고 브라우저에서 화면과 콘솔(CSP 위반 없음)을 확인한다. 실패했거나 확인하지 않은 변경은 push 하지 않는다.
-- CI(`.github/workflows/ci.yml`)는 `main` push 와 `main` 대상 PR 마다 Ubuntu·Windows 테스트, CSS 빌드(SHA-256 검증 포함), PostgreSQL 마이그레이션 왕복, PowerShell 5.1 구문 검사, `pip-audit`(경고성)를 돈다. CI 가 실패하면 되돌리거나 바로 고치는 커밋을 올린다.
+- CI(`.github/workflows/ci.yml`)는 `main` push 와 `main` 대상 PR 마다 Ubuntu·Windows 테스트, CSS 빌드(SHA-256 검증 포함), PostgreSQL 마이그레이션 왕복, PowerShell 5.1 구문 검사, lock 정합 검사, `pip-audit`(경고성)를 돈다. 매주 정기 실행(lock·audit)도 있다 — 커밋이 없어도 새 취약점이 드러난다. 액션은 커밋 SHA, `postgres` 이미지는 digest 로 고정하고 Dependabot(`.github/dependabot.yml`)이 갱신 PR 을 연다. CI 가 실패하면 되돌리거나 바로 고치는 커밋을 올린다.
 - AI 에이전트는 **사용자가 요청할 때만** 커밋·push 한다.
 
 기본 흐름(단독 개발은 `main` 직접 커밋, 브랜치·PR 은 선택), push 전 검증 명령, 브랜치·PR 을 쓰는 기준, 협업자가 생겼을 때의 전환은 **[`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md) 한 곳**에 둔다. PR 본문 양식은 `.github/pull_request_template.md` 다.
@@ -663,12 +665,12 @@ def _clear_settings_cache():
 
 ## 21. 생성 직후 확인과 배포 전 체크리스트
 
-저장소 구조, 앱 골격, Alembic 초기 마이그레이션(`0001`~`0004`), 인증 흐름, 화면, 테스트, CI 는 **스캐폴드가 이미 만들어 두었다.** ⛔ `alembic init`·골격 재생성을 하지 않는다. 아래 첫 목록은 할 일이 아니라 **동작 확인**이다.
+저장소 구조, 앱 골격, Alembic 초기 마이그레이션(`0001`~`0005`), 인증 흐름, 화면, 테스트, CI 는 **스캐폴드가 이미 만들어 두었다.** ⛔ `alembic init`·골격 재생성을 하지 않는다. 아래 첫 목록은 할 일이 아니라 **동작 확인**이다.
 
 ### 생성 직후 확인
 
 - [ ] `AGENTS.md` 「프로젝트 개요」의 `<…>` 자리표시를 채운다 — 비어 있으면 첫 작업 전에 사용자에게 묻는다
-- [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`flask --app app.main run --debug`) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 `{"db": "ok", …}` 를 돌려준다(DB 에 접근할 수 없으면 503)
+- [ ] CSS 를 빌드하고(`scripts/tailwind.*`) 개발 서버가 뜬다(`flask --app app.main run --debug`) — `GET /api/v1/health` 200, `GET /api/v1/health/db` 가 `{"db": "ok"}` 를 돌려준다(DB 에 접근할 수 없으면 503)
 - [ ] 기본 관리자(`admin`, 비밀번호는 `.env` 의 `DEFAULT_ADMIN_PASSWORD`)로 로그인되고 관리자 대시보드에 「DB 정상」과 리비전이 보인다
 - [ ] 브라우저 개발자 도구 콘솔에 CSP 위반이 없다(공지 검색·사용자 행 저장·배너 순서 이동, 공지 작성 화면 편집기의 이미지 업로드·붙여넣기)
 - [ ] 로컬 검증이 통과한다 — `pip check`·`ruff check .`·`pytest -q` ([`pr-workflow` 스킬](.claude/skills/pr-workflow/SKILL.md))
@@ -680,16 +682,20 @@ def _clear_settings_cache():
 skeleton 은 개발 편의를 위해 기본 관리자 계정(`admin`)을 자동 시드한다(비밀번호는 스캐폴드가 무작위로 생성해 `.env` 의 `DEFAULT_ADMIN_PASSWORD` 에 넣는다). **운영 배포 전 반드시 제거·변경한다.**
 
 - [ ] `SECRET_KEY` 를 무작위 값으로 교체 — 기본값이면 개발에서는 경고, `APP_ENV=production` 에서는 **기동 실패**다
-- [ ] `APP_ENV=production` 설정 — 기본·짧은 `SECRET_KEY`, 관리자 시드, `COOKIE_SECURE=false`, 낮은 `BCRYPT_ROUNDS` 중 하나라도 남아 있으면 기동이 실패한다 (§9, §17)
+- [ ] `APP_ENV=production` 설정 — 기본·짧은 `SECRET_KEY`, 관리자 시드, `COOKIE_SECURE=false`, 낮은 `BCRYPT_ROUNDS` 중 하나라도 남아 있으면 기동이 실패한다 (§9, §17). `TRUSTED_PROXY_HOPS` 를 두었는데 `APP_ENV` 가 기본값(development)이면 기동이 실패한다 — 운영 검사가 경고로 바뀐 채 배포되는 것을 막는다(`app/web/proxy.py`)
 - [ ] 기본 관리자 시드 정리 — 운영 `.env` 에서 `SEED_DEFAULT_ADMIN=false`. 운영 관리자는 `python -m app.cli create-admin --username <이름>` 으로 만들고, 개발 중 쓴 계정 비밀번호는 `python -m app.cli set-password` 로 바꾼다 (§9)
 - [ ] 개발 서버(`flask run`) 대신 WSGI 서버로 띄운다 — `waitress-serve --call app.main:create_app` 또는 `gunicorn "app.main:create_app()"` (§4)
 - [ ] HTTPS 종단 뒤에 배치하고 `COOKIE_SECURE=true` — 인증 쿠키가 평문 HTTP 로 나가지 않게 한다. 프록시가 `Host`·`X-Forwarded-Proto`·`X-Forwarded-For` 를 전달하는지 확인하고 `TRUSTED_PROXY_HOPS=1` 을 둔다 — 기동 로그에 `TRUSTED_PROXY_HOPS` 경고가 없어야 한다 (§9, §14, §17)
-- [ ] 앞단 프록시(또는 WAF)에 로그인 경로의 IP 단위 요청 제한과 업로드 본문 상한을 둔다 — 앱의 로그인 잠금은 계정 단위다 (§8, §9). 예시는 `deploy/nginx.conf`
+- [ ] 앞단 프록시(또는 WAF)에 로그인 경로의 IP 단위 요청 제한을 두고, 요청 본문 상한은 기본을 작게 두고 관리자 업로드 경로에서만 넓힌다(앱도 같은 경로의 관리자 요청에만 업로드 상한을 연다 — `app/web/body_limit.py`). 알 수 없는 `Host` 는 앱에 닿기 전에 끊고 `/api/v1/health/db` 는 외부에 열지 않는다 (§8, §9). 예시는 `deploy/nginx.conf`
+- [ ] 앱은 셸·sudo 가 없는 전용 계정으로 실행하고, 코드는 읽기만, 쓰기는 `UPLOAD_DIR` 에만 허용한다. 앱 포트는 TCP 대신 nginx 만 접근하는 유닉스 소켓으로 둔다 (`deploy/app.service`)
+- [ ] DB 계정을 소유(마이그레이션) 계정과 데이터 읽기·쓰기 전용 앱 계정으로 나눈다. `.env` 의 `DATABASE_URL` 은 앱 계정이다 (`deploy/README.md`)
+- [ ] 운영 `.env` 의 `LOGIN_MAX_FAILURES`·`LOGIN_LOCKOUT_MINUTES` 를 서비스에 맞게 정하고, 관리자 아이디는 추측하기 어려운 이름으로 만든다 (§9)
 - [ ] CSS 를 빌드한 `app.css` 를 배포 산출물에 포함한다 (§15)
 - [ ] 로그 수집 대상에 `app.audit` 를 포함한다 (`LOG_LEVEL=INFO` 이상, §9)
 - [ ] 운영 DB 의 KST 확인 — 연결 시각대(`SHOW timezone` = `Asia/Seoul`)와 DB 기본값(`func.now()`)이 KST 인지 본다. 앱 시각·로그는 OS 시각대와 무관하게 KST 이므로 서버 OS 시각대는 바꾸지 않아도 된다 (§7, §10)
 - [ ] 운영 DB 에 `alembic upgrade head` 를 적용하는 시점과 롤백 계획을 정한다 (§11)
 - [ ] `UPLOAD_DIR` 을 영속 저장소에 둔다 (§8)
+- [ ] `python -m app.cli cleanup-auth` 를 주기 실행(cron·systemd timer)으로 등록한다 — 만료·폐기 세션과 오래된 로그인 실패 기록을 지운다 (§9)
 - [ ] 기본 아이콘(`static/img/favicon.*`)을 프로젝트 아이콘으로 바꾸고, 공개 화면에 `meta description` 을 둔다 (§13)
 
 ---

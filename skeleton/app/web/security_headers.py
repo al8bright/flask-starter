@@ -29,6 +29,9 @@ CONTENT_SECURITY_POLICY = "; ".join(
     ]
 )
 
+# 쓰지 않는 브라우저 기능을 문서 단위로 끈다 — 스크립트가 주입되더라도 권한 요청을 띄우지 못한다.
+# fullscreen 은 공지 본문의 유튜브 임베드가 쓰므로 기본값(같은 출처 + 위임)으로 둔다.
+PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
 # 인증 상태에 따라 내용이 달라지는 HTML 은 공유 캐시에 남기지 않는다.
 PRIVATE_NO_STORE = "private, no-store"
 # 검색엔진 색인에서 빼는 블루프린트 — 로그인·관리자 화면과 JSON·첨부 다운로드.
@@ -42,6 +45,7 @@ def register_security_headers(app: Flask) -> None:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Permissions-Policy"] = PERMISSIONS_POLICY
         response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         settings = get_settings()
         # HSTS 는 HTTPS 배포에서만 — 개발(http://localhost)이 HTTPS 로 고정되는 사고를 막는다.

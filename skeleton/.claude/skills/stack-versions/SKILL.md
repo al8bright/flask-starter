@@ -6,9 +6,12 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 # 스택 버전 & 버전별 주의
 
 ## 1. 정확한 버전의 출처 (SSOT) — 항상 여기서 확인
-- **런타임 하한·도구 버전**: `scripts/versions.env` (`MIN_PYTHON`·`TAILWIND_VERSION`·`HTMX_VERSION`)
+- **런타임 하한·도구 버전**: `scripts/versions.env` (`MIN_PYTHON`·`TAILWIND_VERSION`·`HTMX_VERSION`, lock 기준 시각 `LOCK_EXCLUDE_NEWER`)
 - **Python 설치 핀**: `.python-version`
-- **Python 패키지**: `requirements.txt` (`==` 정확 핀)
+- **Python 패키지**: `requirements.txt` (직접 의존성 `==` 정확 핀 — 사람이 고치는 입력)
+- **설치 lock**: `requirements.lock` (전이 의존성까지 정확 버전 + SHA-256 해시 — `scripts/lock.py` 가 만든다. ⛔ 손으로 고치지 않는다)
+- **CI·lock 도구**: `.github/requirements-ci.txt` (pip-audit·uv 핀) → `.github/requirements-ci.lock`
+- **GitHub Actions·CI 이미지**: `.github/workflows/ci.yml` 의 커밋 SHA(`# vX.Y.Z` 주석)·`postgres@sha256:` digest
 - **Tailwind CLI 무결성**: `scripts/tailwind-sha256sums.txt`
 - **htmx 본체**: `app/static/js/htmx.min.js` (벤더링)
 
@@ -21,9 +24,12 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 | Python 하한 | 이상이면 기존 설치본 재사용 | `scripts/versions.env` |
 | Python 설치 핀 | pyenv 가 설치·활성화(정확 버전) | `.python-version` |
 | Python 패키지 | `==` **정확 고정** — 재현성 우선. 동작을 좌우하는 전이 의존성 werkzeug·jinja2·markupsafe·itsdangerous 포함 | `requirements.txt` |
-| Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증. Node 불필요 | `versions.env` + `tailwind-sha256sums.txt` |
+| Python 설치 | 전이 의존성까지 정확 버전 + 해시. 설치는 **언제나** `pip install --require-hashes -r requirements.lock`(로컬·CI·배포). ⛔ `pip install --upgrade pip` 같은 미고정 설치를 하지 않는다 | `requirements.lock` |
+| CI 도구(pip-audit·uv) | 정확 핀 + 해시 lock(pip 자체도 lock 에 들어 있다) | `.github/requirements-ci.txt` → `.lock` |
+| GitHub Actions | 전체 커밋 SHA + `# vX.Y.Z` 주석, `persist-credentials: false` | `.github/workflows/ci.yml` |
+| Tailwind CSS | standalone CLI 정확 버전 + SHA-256 검증(실행마다). Node 불필요 | `versions.env` + `tailwind-sha256sums.txt` |
 | htmx | 파일 벤더링(CDN 금지 — CSP `script-src 'self'`) | `app/static/js/htmx.min.js` + `versions.env` |
-| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16`) |
+| PostgreSQL | 고정 없음 | 16+ 권장(CI 는 `postgres:16` 을 digest 로 고정) |
 
 패키지별 전체 목록은 **`README.md` 의 「기술 스택과 버전」** 절에 표로 있다.
 
@@ -48,7 +54,7 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 
 ### Tailwind CSS v4 standalone CLI
 - 설정 파일(`tailwind.config.js`) 없이 `app/static/css/input.css` 의 `@import "tailwindcss"`·`@source`·`@theme` 로 설정한다. 클래스를 찾는 범위는 `@source` 가 정한다 — 템플릿 폴더를 옮기면 함께 고친다.
-- `scripts/tailwind.*` 는 `.tools/tailwindcss-<버전>-<OS>-<아키텍처>` 가 없을 때만 내려받고, **SHA-256 이 `tailwind-sha256sums.txt` 와 다르면 쓰지 않고 중단**한다. Windows 는 x64 바이너리만 있다.
+- `scripts/tailwind.*` 는 `.tools/tailwindcss-<버전>-<OS>-<아키텍처>` 가 없을 때만 내려받는다. **SHA-256 은 실행할 때마다** `tailwind-sha256sums.txt` 와 비교한다 — 내려받아 둔 파일이 다르면 지우고 다시 내려받고, 새로 받은 파일도 다르면 쓰지 않고 중단한다. Windows 는 x64 바이너리만 있다.
 - 출력 `app/static/css/app.css` 는 빌드 결과라 커밋하지 않는다(`.gitignore`). 배포 산출물을 만들 때 다시 빌드한다.
 
 ### SQLAlchemy 2.x / Alembic
@@ -83,7 +89,9 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 - 원칙은 직접 의존성만 핀하지만, **동작을 좌우하는데 상위가 범위를 넓게 열어 둔 전이 의존성은 예외로 직접 핀**한다. 현재 대상: **`werkzeug`·`jinja2`·`markupsafe`·`itsdangerous`**(§3 Flask).
 - 런타임 하한을 올린다고 핀을 자동으로 올리지 않는다 — **호환되면 유지**한다.
 - 핀 상향은 보안·기능 목적의 **의식적 결정**으로 한다.
-- 후보 버전은 **배포 후 24시간이 지난 것**만 고른다(당일 배포본은 회수·핫픽스 위험) — §5 의 `--uploaded-prior-to P1D`. Tailwind CLI·htmx 도 같은 기준이다.
+- 후보 버전은 **배포 후 24시간이 지난 것**만 고른다(당일 배포본은 회수·핫픽스 위험) — §5 의 `--uploaded-prior-to P1D`. Tailwind CLI·htmx·uv·pip-audit·GitHub Actions 도 같은 기준이다.
+- 전이 의존성은 `requirements.lock` 이 고정한다. lock 은 `scripts/versions.env` 의 `LOCK_EXCLUDE_NEWER`(UTC) 뒤에 올라온 배포본을 넣지 않으므로(`uv --exclude-newer`), 이 값은 **lock 을 다시 만드는 시점의 24시간 전**으로 옮긴다. 값을 옮기면 직접 핀이 아닌 전이 의존성도 그 시각의 최신으로 바뀐다 — lock diff 를 보고 의도하지 않은 변경이 없는지 확인한다.
+- ⛔ `requirements.txt` 만 바꾸고 lock 을 다시 만들지 않으면 CI `lock` 잡이 실패한다(설치는 lock 만 쓴다).
 
 ## 5. 업그레이드 검증 절차 (필수)
 
@@ -92,39 +100,57 @@ description: __PROJECT_NAME__ 의 고정 스택 버전과 버전별 주의사항
 
 ### 5-1. Python 패키지
 
+사람이 고치는 파일은 `requirements.txt`(직접 의존성)와 `.github/requirements-ci.txt`(CI 도구)뿐이다. 두 lock 은 `scripts/lock.py` 가 다시 만든다.
+lock 도구(uv)·pip 는 프로젝트 `.venv` 가 아니라 **프로젝트 밖의 도구 venv** 에 `.github/requirements-ci.lock` 으로 설치한다(프로젝트 venv 에 도구가 섞이지 않게).
+
 1. **venv 는 `.python-version` 의 Python 으로 만든다.** 시스템 기본 `python` 이 더 새 버전(예: 3.14)일 수 있으니 버전을 먼저 확인한다.
-2. pip 26.3+ 의 `--uploaded-prior-to P1D` 로 배포 후 24시간이 지난 후보만 설치하고, `pip show` 로 확인한 버전을 `requirements.txt` 에 `==` 로 적는다. Flask 를 올리면 Werkzeug 핀도 함께 본다(§3).
-3. 핀을 반영한 `requirements.txt` 로 다시 설치하고 `pip check` → `ruff check .` → `pytest -q -W error::DeprecationWarning` 을 통과시킨다.
-4. 모델·마이그레이션·DB 드라이버가 바뀌었으면 실제 PostgreSQL 에서 `alembic upgrade head` → `alembic check` 까지 확인한다([db-migration]).
+2. 도구 venv 에서 `pip install --dry-run --uploaded-prior-to P1D <패키지>` 로 배포 후 24시간이 지난 후보 버전을 확인하고(`Would install …`), `requirements.txt` 에 `==` 로 적는다. Flask 를 올리면 Werkzeug 핀도 함께 본다(§3).
+3. `scripts/versions.env` 의 `LOCK_EXCLUDE_NEWER` 를 **지금보다 24시간 이상 전의 UTC 시각**(`YYYY-MM-DDT00:00:00Z` 형식)으로 옮기고, 도구 venv 의 python 으로 `scripts/lock.py` 를 실행해 두 lock 을 다시 만든다. lock diff 에서 전이 의존성 변경을 확인한다(§4).
+4. 프로젝트 `.venv` 를 `--clear` 로 다시 만들어 `pip install --require-hashes -r requirements.lock` 으로 설치하고 `pip check` → `ruff check .` → `pytest -q -W error::DeprecationWarning` 을 통과시킨다.
+5. `scripts/lock.py --check`(CI `lock` 잡과 같다)와 `pip-audit -r requirements.lock --require-hashes --disable-pip` 로 마무리한다.
+6. 모델·마이그레이션·DB 드라이버가 바뀌었으면 실제 PostgreSQL 에서 `alembic upgrade head` → `alembic check` 까지 확인한다([db-migration]).
 
 ```powershell
-# Windows (PowerShell 5.1) — py 런처로 .python-version 과 같은 버전을 지정한다(기존 .venv 는 --clear 로 다시 만든다)
+# Windows (PowerShell 5.1) — py 런처로 .python-version 과 같은 버전을 지정한다(기존 venv 는 --clear 로 다시 만든다)
 # py 런처가 없으면(pyenv-win 등) 핀 버전 python.exe 경로로 만든다 — 예: & (pyenv which python) -m venv --clear .venv
+$tools = Join-Path $env:TEMP 'lock-tools'                 # 도구 venv — 프로젝트 밖에 둔다
+py -3.13 -m venv --clear $tools;                          if ($LASTEXITCODE) { throw "도구 venv 생성 실패" }
+& "$tools\Scripts\python" -m pip install --require-hashes -r .github\requirements-ci.lock; if ($LASTEXITCODE) { throw "도구 설치 실패" }
+& "$tools\Scripts\python" -m pip install --dry-run --ignore-installed --no-deps --uploaded-prior-to P1D <패키지>  # 후보 확인
+# → requirements.txt 의 핀과 versions.env 의 LOCK_EXCLUDE_NEWER 를 고친다
+& "$tools\Scripts\python" -B scripts\lock.py;             if ($LASTEXITCODE) { throw "lock 생성 실패" }
 py -3.13 -m venv --clear .venv;                           if ($LASTEXITCODE) { throw "venv 생성 실패" }
 .\.venv\Scripts\python --version                          # .python-version 과 같은 3.13.x 인지 확인
-.\.venv\Scripts\python -m pip install --upgrade pip;      if ($LASTEXITCODE) { throw "pip 갱신 실패" }
-.\.venv\Scripts\python -m pip install --uploaded-prior-to P1D --upgrade <패키지>; if ($LASTEXITCODE) { throw "후보 설치 실패" }
-.\.venv\Scripts\python -m pip show <패키지>;            if ($LASTEXITCODE) { throw "pip show 실패" }
-.\.venv\Scripts\python -m pip install --uploaded-prior-to P1D -r requirements.txt; if ($LASTEXITCODE) { throw "설치 실패" }
+.\.venv\Scripts\python -m pip install --require-hashes -r requirements.lock; if ($LASTEXITCODE) { throw "설치 실패" }
 .\.venv\Scripts\python -m pip check;                      if ($LASTEXITCODE) { throw "pip check 실패" }
 .\.venv\Scripts\python -m ruff check .;                   if ($LASTEXITCODE) { throw "ruff 실패" }
 .\.venv\Scripts\python -m pytest -q -W error::DeprecationWarning; if ($LASTEXITCODE) { throw "pytest 실패" }
+& "$tools\Scripts\python" -B scripts\lock.py --check;     if ($LASTEXITCODE) { throw "lock 불일치" }
+& "$tools\Scripts\python" -m pip_audit -r requirements.lock --require-hashes --disable-pip; if ($LASTEXITCODE) { throw "취약점 발견" }
 ```
 
 ```bash
 # macOS / Linux — pyenv 를 쓰면 python 이 .python-version 을 따른다. && 는 실패한 곳에서 멈춘다
 # (⛔ 대화형 셸에 set -e 를 걸지 않는다 — 명령 하나가 실패하면 셸이 닫힌다)
 python --version                                          # .python-version 과 같은 3.13.x 인지 확인
-python -m venv --clear .venv \
-  && ./.venv/bin/python -m pip install --upgrade pip \
-  && ./.venv/bin/python -m pip install --uploaded-prior-to P1D --upgrade <패키지> \
-  && ./.venv/bin/python -m pip show <패키지>
-./.venv/bin/python -m pip install --uploaded-prior-to P1D -r requirements.txt \
+tools="${TMPDIR:-/tmp}/lock-tools"                        # 도구 venv — 프로젝트 밖에 둔다
+python -m venv --clear "$tools" \
+  && "$tools/bin/python" -m pip install --require-hashes -r .github/requirements-ci.lock \
+  && "$tools/bin/python" -m pip install --dry-run --ignore-installed --no-deps --uploaded-prior-to P1D <패키지>
+# → requirements.txt 의 핀과 versions.env 의 LOCK_EXCLUDE_NEWER 를 고친다
+"$tools/bin/python" -B scripts/lock.py \
+  && python -m venv --clear .venv \
+  && ./.venv/bin/python -m pip install --require-hashes -r requirements.lock \
   && ./.venv/bin/python -m pip check \
   && ./.venv/bin/python -m ruff check . \
-  && ./.venv/bin/python -m pytest -q -W error::DeprecationWarning
+  && ./.venv/bin/python -m pytest -q -W error::DeprecationWarning \
+  && "$tools/bin/python" -B scripts/lock.py --check \
+  && "$tools/bin/python" -m pip_audit -r requirements.lock --require-hashes --disable-pip
 ```
 
+- **CI 도구(pip-audit·uv)를 올릴 때**: `.github/requirements-ci.txt` 의 핀을 고친다. `scripts/lock.py` 는 설치된 uv 가 이 핀과 다르면 멈추므로(uv 버전마다 lock 결과가 달라질 수 있다), 도구 venv 에 새 uv 를 먼저 `pip install --uploaded-prior-to P1D uv==<새 버전>` 으로 넣고 lock 을 다시 만든 뒤, 도구 venv 를 새 `.github/requirements-ci.lock` 으로 다시 만들어 `--check` 가 통과하는지 본다.
+- **Dependabot PR**(`.github/dependabot.yml`, 매주): pip PR 은 `requirements.txt`·`.github/requirements-ci.txt` 의 핀만 바꾸고 lock 은 바꾸지 않는다 → CI `lock` 잡이 **실패하는 것이 정상**이다. 그 PR 브랜치에서 위 3~5단계(기준 시각 이동 → `scripts/lock.py` → 설치·테스트 → `--check`)를 거쳐 lock 을 함께 커밋한 뒤 병합한다. Dependabot 은 배포 후 1일이 지난 버전만 올리지만(cooldown) 그 버전이 `LOCK_EXCLUDE_NEWER` 보다 새로우면 기준 시각을 옮겨야 lock 이 만들어진다.
+- **GitHub Actions**: Dependabot 이 SHA 와 `# vX.Y.Z` 주석을 함께 올린다. 손으로 올릴 때는 `gh api repos/<소유자>/<액션>/git/ref/tags/<태그>` 로 SHA 를 확인하고, 그 커밋이 공식 저장소의 릴리스 태그인지 본다. **PostgreSQL 이미지 digest** 는 Dependabot 대상이 아니다 — `docker buildx imagetools inspect postgres:16` 의 `Digest` 로 손으로 옮기고 주석의 버전·빌드 날짜를 함께 고친다.
 ### 5-2. Tailwind CLI · htmx
 
 - **Tailwind**: 새 릴리스의 자산별 SHA-256 을 GitHub 자산 digest 로 확인한다 — `gh api repos/tailwindlabs/tailwindcss/releases/tags/v<버전> --jq '.assets[] | select(.name | startswith("tailwindcss-")) | "\(.digest | ltrimstr("sha256:"))  \(.name)"'`. 그 결과로 `scripts/tailwind-sha256sums.txt` 의 해시 줄을 모두 바꾸고(첫 줄 주석의 버전도), `versions.env` 의 `TAILWIND_VERSION` 을 같은 버전으로 바꾼다. `.tools/` 를 지우고 `scripts/tailwind.*` 를 실행해 내려받기·검증·빌드가 통과하는지, 화면 스타일이 그대로인지 확인한다.
